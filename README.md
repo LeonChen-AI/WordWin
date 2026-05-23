@@ -13,7 +13,7 @@ WordWin 是一个浏览器英语阅读插件。它不会整页翻译，而是在
 ## 截图
 
 <p>
-  <img src="annotation.png" alt="WordWin 标注效果" width="720">
+  <img src="annotation.png" alt="WordWin 标注效果" width="420">
 </p>
 
 <p>
