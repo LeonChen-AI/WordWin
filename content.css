@@ -1,0 +1,13 @@
+/* WordWin 标注样式 */
+
+.wordwin-annotation {
+  font-weight: bold;
+}
+
+.wordwin-translation {
+  color: #888;
+  font-size: 0.85em;
+  font-weight: normal;
+  margin-left: 1px;
+  user-select: none;
+}

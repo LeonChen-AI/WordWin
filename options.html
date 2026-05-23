@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>WordWin 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>WordWin 设置</h1>
+
+    <!-- 标签导航 -->
+    <div class="tabs">
+      <button class="tab active" data-tab="general">基本设置</button>
+      <button class="tab" data-tab="workflow">Prompt 工作流</button>
+      <button class="tab" data-tab="usage">用量统计</button>
+    </div>
+
+    <!-- 基本设置 -->
+    <div id="tab-general" class="tab-content active">
+
+      <section>
+        <h2>API 配置</h2>
+        <div class="field">
+          <label>服务商</label>
+          <select id="select-provider">
+            <option value="openai">OpenAI</option>
+            <option value="aliyun">阿里云百炼 / 通义千问</option>
+            <option value="volcengine">火山方舟 / 豆包</option>
+          </select>
+          <p id="provider-hint" class="hint"></p>
+        </div>
+        <div class="field">
+          <label>推理 / 思考模式</label>
+          <select id="select-thinking">
+            <option value="off">关闭（默认，速度更快、成本更低）</option>
+            <option value="on">打开（可能更准，但更慢、更耗 token）</option>
+          </select>
+          <p class="hint">部分模型默认会开启 reasoning/thinking。WordWin 默认关闭；需要更强推理时再打开。</p>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="input-apikey" placeholder="sk-...">
+        </div>
+        <div class="field">
+          <label>Base URL</label>
+          <input type="text" id="input-baseurl" placeholder="https://api.openai.com/v1">
+          <p class="hint">当前仅内置支持 OpenAI、阿里云百炼和火山方舟。</p>
+        </div>
+        <div class="field">
+          <label>模型名称</label>
+          <input type="text" id="input-model" placeholder="gpt-4o-mini">
+        </div>
+        <div class="field">
+          <label>并发量</label>
+          <input type="number" id="input-concurrency" min="1" max="10" step="1" placeholder="5">
+          <p class="hint">并发越高，速度越快，但更容易触发限流或消耗额度。建议 1-10。</p>
+        </div>
+        <div class="field-row">
+          <button id="btn-test" class="btn-secondary">测试连接</button>
+          <button id="btn-test-concurrency" class="btn-secondary">测试并发</button>
+          <span id="test-status" class="status"></span>
+        </div>
+        <span id="concurrency-status" class="status"></span>
+      </section>
+
+      <section>
+        <h2>翻译范围</h2>
+        <div class="field">
+          <select id="select-scan-mode">
+            <option value="full">全面翻译模式</option>
+            <option value="article">正文翻译模式</option>
+          </select>
+          <p class="hint">全面翻译模式会处理导航、按钮、目录、页脚和正文，并尽量给短文本也加中文提示；正文翻译模式主要处理文章正文。</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>阅读等级</h2>
+        <div class="field">
+          <select id="select-level">
+            <option value="L1">L1</option>
+            <option value="L2">L2</option>
+            <option value="L3">L3</option>
+            <option value="L4">L4</option>
+            <option value="L5">L5</option>
+          </select>
+          <p class="hint">L1 标注最多，L5 标注最少。</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>阅读能力测试</h2>
+        <p class="hint">如果你不确定该选哪个等级，可以先看一段样例。系统会按当前等级生成标注，你再判断是要更多标注、还是更少标注。</p>
+        <div class="level-test">
+          <div class="level-test-header">
+            <span class="level-test-label">当前测试等级</span>
+            <span id="test-level-value" class="level-test-value">L3</span>
+          </div>
+          <button id="btn-start-level-test" class="btn-secondary" type="button">开始测试</button>
+          <div id="level-test-sample" class="level-test-sample" hidden>
+            <div id="level-test-loading" class="loading" hidden>正在生成样例...</div>
+            <div id="level-test-content" class="samples"></div>
+            <div class="level-test-actions">
+              <button id="btn-test-easier" class="btn-secondary" type="button">需要更多标注</button>
+              <button id="btn-test-ok" class="btn-primary" type="button">刚刚好，使用这个等级</button>
+              <button id="btn-test-harder" class="btn-secondary" type="button">需要更少标注</button>
+            </div>
+            <span id="level-test-status" class="status"></span>
+          </div>
+        </div>
+      </section>
+
+      <button id="btn-save" class="btn-primary">保存设置</button>
+      <span id="save-status" class="status"></span>
+    </div>
+
+    <!-- Prompt 工作流 -->
+    <div id="tab-workflow" class="tab-content">
+
+      <section>
+        <h2>工作流程</h2>
+        <div class="workflow-diagram">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">页面加载后，扫描可见区域的文本段落</div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">将段落文本 + 用户英语水平发送给 LLM</div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">LLM 根据下方 Prompt 识别生词，返回 JSON</div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">在页面中对生词加粗并插入括号释义</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>系统 Prompt</h2>
+        <p class="hint">这是发送给 LLM 的指令。你可以编辑它来自定义标注行为（比如加上词性、改用英文释义等）。</p>
+        <div class="level-help">
+          <button id="btn-level-help" class="help-toggle" type="button" aria-expanded="false" aria-controls="level-help-panel">?</button>
+          <span class="level-help-label">查看 L1-L5 的完整等级说明</span>
+        </div>
+        <div id="level-help-panel" class="level-help-panel" hidden>
+          <div class="level-help-item">
+            <h3>L1</h3>
+            <p><strong>能力参考：</strong>约等于 IELTS 2 分及以下</p>
+            <p><strong>阅读特点：</strong>几乎没有英语阅读基础，只认识最基本的功能词和代词。</p>
+            <p><strong>标注策略：</strong>绝大多数实义词都需要标注，每段 10-20 个词。</p>
+          </div>
+          <div class="level-help-item">
+            <h3>L2</h3>
+            <p><strong>能力参考：</strong>约等于 IELTS 4 分</p>
+            <p><strong>阅读特点：</strong>认识常见简单词汇，但中等难度词和短语容易卡住。</p>
+            <p><strong>标注策略：</strong>标注中低频词、抽象词、较长词和不常见短语，每段 6-12 个词。</p>
+          </div>
+          <div class="level-help-item">
+            <h3>L3</h3>
+            <p><strong>能力参考：</strong>约等于 IELTS 5.5 分</p>
+            <p><strong>阅读特点：</strong>能读懂大部分日常内容，但学术词汇和书面表达会卡住。</p>
+            <p><strong>标注策略：</strong>只标注学术词、专业表达和语义不直观的短语，每段 3-6 个词。</p>
+          </div>
+          <div class="level-help-item">
+            <h3>L4</h3>
+            <p><strong>能力参考：</strong>约等于 IELTS 7 分</p>
+            <p><strong>阅读特点：</strong>能流畅阅读大部分英文内容，词汇量较大。</p>
+            <p><strong>标注策略：</strong>只标注低频专业术语和罕见书面表达，每段最多 1-2 个词。</p>
+          </div>
+          <div class="level-help-item">
+            <h3>L5</h3>
+            <p><strong>能力参考：</strong>约等于 IELTS 8 分及以上</p>
+            <p><strong>阅读特点：</strong>接近母语阅读水平，几乎所有英文内容都能直接理解。</p>
+            <p><strong>标注策略：</strong>只标注极罕见的专业术语，绝大多数段落无需标注。</p>
+          </div>
+        </div>
+        <textarea id="prompt-editor" rows="16"></textarea>
+        <div class="prompt-actions">
+          <button id="btn-save-prompt" class="btn-primary">保存 Prompt</button>
+          <button id="btn-reset-prompt" class="btn-secondary">恢复默认</button>
+          <span id="prompt-status" class="status"></span>
+        </div>
+      </section>
+    </div>
+
+    <!-- 用量统计 -->
+    <div id="tab-usage" class="tab-content">
+      <section>
+        <h2>Token 用量统计</h2>
+        <p class="hint">统计来自各服务商返回的 usage 字段。少数接口不返回 usage 时，只记录请求次数。</p>
+        <div class="usage-actions">
+          <button id="btn-refresh-usage" class="btn-secondary" type="button">刷新</button>
+          <span id="usage-status" class="status"></span>
+        </div>
+        <div id="usage-updated" class="hint"></div>
+        <div id="usage-panels" class="usage-panels"></div>
+        <div class="usage-danger-zone">
+          <button id="btn-clear-usage" class="btn-danger" type="button">清空统计</button>
+          <p class="hint">清空后会删除本机保存的 token 用量记录，此操作不可恢复。</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
