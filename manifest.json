@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "WordWin",
-  "version": "0.5.0",
-  "description": "不翻译整篇文章，只翻译你不会的词。基于你的英语水平，智能标注生词释义。",
-  "permissions": ["storage", "activeTab", "tabs"],
+  "name": "自适应翻译",
+  "version": "0.9.1",
+  "description": "基于你的英语水平标注生词，并提供可联动高亮的段落对照翻译。",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": "icon.png"
@@ -13,14 +16,25 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-core.js",
+        "content-run-state.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "options_page": "options.html",
   "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
     "128": "icon.png"
   }
 }

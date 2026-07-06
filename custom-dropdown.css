@@ -1,0 +1,168 @@
+/* Custom Dropdown Component — shared styles */
+
+/* Hide native select completely — multiple techniques for cross-browser safety */
+select[data-custom-dropdown] {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(100%) !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+select[data-custom-dropdown]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.cd-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  border: 1px solid #d6d3cd;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0 12px;
+  height: 34px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cd-dropdown.focused {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+
+.cd-display {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.cd-arrow {
+  flex-shrink: 0;
+  margin-left: 8px;
+  color: #86868b;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.cd-dropdown.focused .cd-arrow {
+  transform: rotate(180deg);
+}
+
+.cd-panel {
+  display: none;
+  position: fixed;
+  background: #fff;
+  border: 1px solid #d6d3cd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(80,60,40,0.1), 0 1px 4px rgba(80,60,40,0.06);
+  z-index: 9999;
+  padding: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.cd-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.cd-panel.open {
+  display: block;
+}
+
+.cd-option {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.4;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.cd-option:hover {
+  background: #f5f0ff;
+}
+
+.cd-option.selected {
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+/* Compact variant (popup) */
+.cd-dropdown.select-compact {
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cd-dropdown.select-compact .cd-display {
+  font-size: 12px;
+}
+
+.cd-dropdown.select-compact .cd-arrow {
+  font-size: 9px;
+  margin-left: 6px;
+}
+
+.cd-dropdown.select-compact .cd-option {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Vocab page variants */
+.cd-dropdown.add-level-select {
+  padding: 0 10px;
+  height: 34px;
+  border-radius: 10px;
+  background: #fafaff;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cd-dropdown.sort-select {
+  padding: 0 12px;
+  height: 34px;
+  font-size: 12px;
+}
+
+/* Edit-level variant (dynamic in vocab) */
+.cd-dropdown.edit-level {
+  padding: 0 10px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}

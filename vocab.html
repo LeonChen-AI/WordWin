@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>生词本 - 自适应翻译</title>
+  <link rel="stylesheet" href="vocab.css">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="custom-dropdown.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <button id="btn-back" class="btn-back" title="返回设置">
+          <svg class="ui-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>设置</span>
+        </button>
+        <h1>生词本</h1>
+      </div>
+      <div class="header-actions">
+        <button id="btn-export" class="btn-secondary">导出 CSV</button>
+        <button id="btn-clear-all" class="btn-danger-sm">清空</button>
+      </div>
+    </div>
+
+    <!-- 手动添加 -->
+    <div class="manual-add">
+      <input type="text" id="add-word" class="add-input" placeholder="输入英文单词" autocomplete="off" spellcheck="false">
+      <input type="text" id="add-translation" class="add-input add-input-trans" placeholder="中文翻译（可选）">
+      <select id="add-level" class="add-level-select">
+        <option value="L1">L1</option>
+        <option value="L2">L2</option>
+        <option value="L3" selected>L3</option>
+        <option value="L4">L4</option>
+        <option value="L5">L5</option>
+      </select>
+      <button id="btn-add" class="btn-add">添加</button>
+    </div>
+
+    <!-- 搜索和筛选 -->
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="搜索单词或翻译">
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all">全部</button>
+        <button class="filter-tab" data-filter="learning">学习中</button>
+        <button class="filter-tab" data-filter="mastered">已掌握</button>
+      </div>
+      <select id="sort-select" class="sort-select">
+        <option value="time">按时间</option>
+        <option value="alpha">按字母</option>
+        <option value="level">按等级</option>
+      </select>
+      <button id="sort-dir" class="sort-dir-btn" title="降序" aria-label="降序">
+        <svg class="ui-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5V19M12 19L7 14M12 19L17 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="view-toggle">
+        <button id="view-cards" class="view-btn active" title="卡片视图" aria-label="卡片视图">
+          <svg class="ui-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 5H10V10H5V5ZM14 5H19V10H14V5ZM5 14H10V19H5V14ZM14 14H19V19H14V14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button id="view-list" class="view-btn" title="列表视图" aria-label="列表视图">
+          <svg class="ui-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 6H20M8 12H20M8 18H20M4 6H4.01M4 12H4.01M4 18H4.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 等级筛选 -->
+    <div class="level-filters">
+      <span class="level-label">等级：</span>
+      <button class="level-chip active" data-level="all">全部</button>
+      <button class="level-chip" data-level="L1">L1</button>
+      <button class="level-chip" data-level="L2">L2</button>
+      <button class="level-chip" data-level="L3">L3</button>
+      <button class="level-chip" data-level="L4">L4</button>
+      <button class="level-chip" data-level="L5">L5</button>
+    </div>
+
+    <!-- 统计 -->
+    <div class="stats-bar">
+      <span class="stat">共 <strong id="stat-total">0</strong> 词</span>
+      <span class="stat-sep">·</span>
+      <span class="stat">学习中 <strong id="stat-learning">0</strong></span>
+      <span class="stat-sep">·</span>
+      <span class="stat">已掌握 <strong id="stat-mastered">0</strong></span>
+    </div>
+
+    <!-- 词表（卡片视图） -->
+    <div id="word-list" class="word-list"></div>
+
+    <!-- 词表（紧凑列表视图） -->
+    <div id="word-list-compact" class="word-list-compact"></div>
+
+    <!-- 分页 -->
+    <div id="pagination" class="pagination"></div>
+
+    <!-- 空状态 -->
+    <div id="empty-state" class="empty-state" hidden>
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path d="M4 5.5C4 4.67 4.67 4 5.5 4H10C11.1 4 12 4.9 12 6V20C12 18.9 11.1 18 10 18H5.5C4.67 18 4 17.33 4 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M20 5.5C20 4.67 19.33 4 18.5 4H14C12.9 4 12 4.9 12 6V20C12 18.9 12.9 18 14 18H18.5C19.33 18 20 17.33 20 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M7 8H9.5M14.5 8H17M7 11H9.5M14.5 11H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p class="empty-title">还没有收录任何单词</p>
+      <p class="empty-hint">阅读时点击标注的生词，即可加入生词本</p>
+    </div>
+  </div>
+
+  <div id="clear-modal" class="modal-backdrop" hidden>
+    <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="clear-modal-title">
+      <div class="confirm-icon" aria-hidden="true">
+        <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M12 7V13M12 17H12.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="confirm-copy">
+        <h2 id="clear-modal-title">清空生词本？</h2>
+        <p id="clear-modal-count">将删除全部单词，此操作不可恢复。</p>
+      </div>
+      <div class="confirm-actions">
+        <button id="btn-clear-cancel" class="btn-secondary" type="button">取消</button>
+        <button id="btn-clear-confirm" class="btn-danger" type="button">确认清空</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="custom-dropdown.js"></script>
+  <script src="vocab.js"></script>
+</body>
+</html>
