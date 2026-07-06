@@ -43,6 +43,12 @@ select[data-custom-dropdown]:focus {
   padding: 0 12px;
   height: 34px;
   transition: border-color 0.2s, box-shadow 0.2s;
+  /* #4: Reset inherited properties */
+  box-sizing: border-box;
+  line-height: normal;
+  text-align: left;
+  direction: ltr;
+  --cd-panel-max-h: 340px;
 }
 
 .cd-dropdown.focused {
@@ -81,15 +87,31 @@ select[data-custom-dropdown]:focus {
   box-shadow: 0 4px 16px rgba(80,60,40,0.1), 0 1px 4px rgba(80,60,40,0.06);
   z-index: 9999;
   padding: 4px;
-  max-height: 340px;
+  max-height: var(--cd-panel-max-h, 340px);
   overflow-y: auto;
-  scrollbar-width: none;
+  /* #5: Show thin subtle scrollbar instead of hiding */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
   font-family: inherit;
   font-size: 13px;
+  box-sizing: border-box;
 }
 
 .cd-panel::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.cd-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cd-panel::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 4px;
+}
+
+.cd-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.22);
 }
 
 .cd-panel.open {

@@ -39,17 +39,29 @@
     const rect = dd.wrapper.getBoundingClientRect();
     const panelStyle = dd.panel.style;
     panelStyle.position = 'fixed';
-    // Measure widest option to prevent text truncation
+    // Measure widest option — temporarily reveal panel off-screen to get real widths
+    panelStyle.visibility = 'hidden';
+    panelStyle.display = 'block';
+    panelStyle.position = 'fixed';
+    panelStyle.left = '-9999px';
+    panelStyle.top = '-9999px';
     let maxW = rect.width;
     dd.panel.querySelectorAll('.cd-option').forEach(opt => {
       const w = opt.scrollWidth + 32; // extra padding for safety
       if (w > maxW) maxW = w;
     });
+    panelStyle.visibility = '';
+    panelStyle.display = 'none';
     panelStyle.minWidth = maxW + 'px';
     panelStyle.width = 'auto';
     panelStyle.left = rect.left + 'px';
+    // #3: Prevent panel from overflowing right edge of viewport
+    const rightEdge = rect.left + maxW;
+    if (rightEdge > window.innerWidth - 8) {
+      panelStyle.left = Math.max(8, window.innerWidth - maxW - 8) + 'px';
+    }
 
-    const panelMaxH = 340;
+    const panelMaxH = parseInt(getComputedStyle(dd.panel).maxHeight) || 340;
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const spaceAbove = rect.top - 8;
 
@@ -65,8 +77,11 @@
     dd.wrapper.classList.add('focused');
     activeDropdown = dd;
 
-    // Close on scroll or resize (fixed panel won't follow scroll)
-    scrollHandler = () => closeDropdown(dd);
+    // Close on scroll or resize — but ignore scrolls originating inside the panel
+    scrollHandler = (e) => {
+      if (e.type === 'scroll' && dd.panel.contains(e.target)) return;
+      closeDropdown(dd);
+    };
     window.addEventListener('scroll', scrollHandler, true);
     window.addEventListener('resize', scrollHandler);
   }
@@ -100,7 +115,8 @@
 
     wrapper.appendChild(display);
     wrapper.appendChild(arrow);
-    wrapper.appendChild(panel);
+    // #7: Append panel to body to escape ancestor overflow:hidden clipping
+    document.body.appendChild(panel);
     select.parentNode.insertBefore(wrapper, select.nextSibling);
 
     const dd = { select, wrapper, display, arrow, panel };

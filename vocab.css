@@ -11,7 +11,7 @@ button, select, input, textarea {
 }
 
 body {
-  font-family: 'Source Serif 4', Georgia, "Noto Serif", "Source Han Serif SC", "Songti SC", "Times New Roman", serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   background: linear-gradient(160deg, #f1f0ff 0%, #e8eaff 50%, #f5f3ff 100%);
   color: #1e1b4b;
   min-height: 100vh;
@@ -432,14 +432,14 @@ body::-webkit-scrollbar {
 .level-chip.active {
   border-color: transparent;
   color: #fff;
+  background: #111827;
 }
 
-.level-chip[data-level="all"].active { background: #6366f1; }
-.level-chip[data-level="L1"].active { background: #22c55e; }
-.level-chip[data-level="L2"].active { background: #3b82f6; }
-.level-chip[data-level="L3"].active { background: #8b5cf6; }
-.level-chip[data-level="L4"].active { background: #f59e0b; }
-.level-chip[data-level="L5"].active { background: #ec4899; }
+.level-chip[data-level="L1"].active { border-left: 3px solid #22c55e; }
+.level-chip[data-level="L2"].active { border-left: 3px solid #3b82f6; }
+.level-chip[data-level="L3"].active { border-left: 3px solid #8b5cf6; }
+.level-chip[data-level="L4"].active { border-left: 3px solid #f59e0b; }
+.level-chip[data-level="L5"].active { border-left: 3px solid #ec4899; }
 
 .stats-page-info {
   margin-left: auto;
@@ -462,7 +462,7 @@ body::-webkit-scrollbar {
   border: 1px solid rgba(199, 210, 254, 0.4);
   border-radius: 16px;
   padding: 14px 18px;
-  box-shadow: 0 1px 3px rgba(99,102,241,0.06), 0 4px 12px rgba(99,102,241,0.04);
+  box-shadow: 0 1px 3px rgba(37,99,235,0.06), 0 4px 12px rgba(37,99,235,0.04);
   display: flex;
   align-items: flex-start;
   gap: 14px;
@@ -470,7 +470,7 @@ body::-webkit-scrollbar {
 }
 
 .word-card:hover {
-  box-shadow: 0 2px 6px rgba(99,102,241,0.1), 0 8px 24px rgba(99,102,241,0.06);
+  box-shadow: 0 2px 6px rgba(37,99,235,0.1), 0 8px 24px rgba(37,99,235,0.06);
   transform: translateY(-1px);
 }
 
@@ -599,7 +599,6 @@ body::-webkit-scrollbar {
 }
 
 .empty-icon {
-  font-size: 52px;
   margin-bottom: 14px;
 }
 
@@ -862,7 +861,7 @@ body::-webkit-scrollbar {
   border: 1px solid rgba(199, 210, 254, 0.4);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(99,102,241,0.06), 0 4px 12px rgba(99,102,241,0.04);
+  box-shadow: 0 1px 3px rgba(37,99,235,0.06), 0 4px 12px rgba(37,99,235,0.04);
   display: none;
 }
 
@@ -889,7 +888,7 @@ body::-webkit-scrollbar {
 }
 
 .list-row:hover {
-  background: rgba(238, 242, 255, 0.5);
+  background: rgba(37,99,235,0.04);
 }
 
 .list-dot {
@@ -1133,7 +1132,7 @@ body {
 .word-list-compact,
 .empty-state {
   background: var(--surface);
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(17,24,39,0.08);
   box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 14px 40px rgba(15,23,42,0.06);
   backdrop-filter: blur(18px);
 }

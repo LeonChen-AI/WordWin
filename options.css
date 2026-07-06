@@ -33,7 +33,7 @@ body {
   font-family: 'Source Serif 4', Georgia, "Noto Serif SC", "Songti SC", "Times New Roman", serif;
   font-size: 14px;
   color: #1d1d1f;
-  background: #f7f5f0;
+  background: #f5f6f8;
   min-height: 100vh;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -1126,7 +1126,7 @@ select:focus {
 }
 
 /* ── Responsive ── */
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .settings-layout {
     flex-direction: column;
     margin: 0;
@@ -1196,6 +1196,7 @@ body {
   border-radius: 24px;
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 .sidebar {
@@ -1308,9 +1309,16 @@ body {
 }
 
 .input,
-select,
-textarea {
+select {
   height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  color: var(--text);
+  background-color: #fff;
+  font-size: 14px;
+}
+
+textarea {
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   color: var(--text);
@@ -1327,7 +1335,7 @@ textarea:focus,
 }
 
 .input-password {
-  letter-spacing: 0;
+  letter-spacing: 2px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -1363,7 +1371,7 @@ textarea:focus,
 }
 
 .status-dot {
-  display: none !important;
+  display: inline-block;
 }
 
 .status-dot.loading {
@@ -1487,7 +1495,7 @@ body.modal-open {
 }
 
 .modal-backdrop[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .confirm-dialog {
