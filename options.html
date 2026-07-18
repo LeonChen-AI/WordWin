@@ -2,214 +2,504 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>WordWin 设置</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>自适应翻译设置</title>
   <link rel="stylesheet" href="options.css">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="custom-dropdown.css">
 </head>
 <body>
-  <div class="container">
-    <h1>WordWin 设置</h1>
 
-    <!-- 标签导航 -->
-    <div class="tabs">
-      <button class="tab active" data-tab="general">基本设置</button>
-      <button class="tab" data-tab="workflow">Prompt 工作流</button>
-      <button class="tab" data-tab="usage">用量统计</button>
+<div class="settings-layout">
+
+  <!-- 侧栏 -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-header-row">
+        <img class="sidebar-logo-img" src="icon-logo.png" alt="自适应翻译">
+        <div class="sidebar-title">自适应翻译</div>
+      </div>
+      <div class="sidebar-meta">
+        <div class="sidebar-credit">v0.9.1 · 本机配置</div>
+      </div>
     </div>
 
-    <!-- 基本设置 -->
-    <div id="tab-general" class="tab-content active">
+    <a class="nav-item active" data-tab="basic">
+      <span class="nav-icon">
+        <svg class="ui-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M19 12A7 7 0 0 0 18.86 10.6L21 8.95L19 5.55L16.45 6.6A7 7 0 0 0 14 5.2L13.65 2.5H10.35L10 5.2A7 7 0 0 0 7.55 6.6L5 5.55L3 8.95L5.14 10.6A7 7 0 0 0 5.14 13.4L3 15.05L5 18.45L7.55 17.4A7 7 0 0 0 10 18.8L10.35 21.5H13.65L14 18.8A7 7 0 0 0 16.45 17.4L19 18.45L21 15.05L18.86 13.4A7 7 0 0 0 19 12Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span>基础设置</span>
+    </a>
+    <a class="nav-item" data-tab="prefs">
+      <span class="nav-icon">
+        <svg class="ui-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 5.5C4 4.67 4.67 4 5.5 4H10C11.1 4 12 4.9 12 6V20C12 18.9 11.1 18 10 18H5.5C4.67 18 4 17.33 4 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M20 5.5C20 4.67 19.33 4 18.5 4H14C12.9 4 12 4.9 12 6V20C12 18.9 12.9 18 14 18H18.5C19.33 18 20 17.33 20 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span>翻译偏好</span>
+    </a>
+    <a class="nav-item" data-tab="workflow">
+      <span class="nav-icon">
+        <svg class="ui-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M13 2L5 13H11L10 22L19 10H13L13 2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span>提示词工作流</span>
+    </a>
+    <a class="nav-item" data-tab="usage">
+      <span class="nav-icon">
+        <svg class="ui-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 19V11M12 19V5M19 19V9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span>用量统计</span>
+    </a>
 
-      <section>
-        <h2>API 配置</h2>
-        <div class="field">
-          <label>服务商</label>
-          <select id="select-provider">
-            <option value="openai">OpenAI</option>
-            <option value="aliyun">阿里云百炼 / 通义千问</option>
-            <option value="volcengine">火山方舟 / 豆包</option>
-          </select>
-          <p id="provider-hint" class="hint"></p>
-        </div>
-        <div class="field">
-          <label>推理 / 思考模式</label>
-          <select id="select-thinking">
-            <option value="off">关闭（默认，速度更快、成本更低）</option>
-            <option value="on">打开（可能更准，但更慢、更耗 token）</option>
-          </select>
-          <p class="hint">部分模型默认会开启 reasoning/thinking。WordWin 默认关闭；需要更强推理时再打开。</p>
-        </div>
-        <div class="field">
-          <label>API Key</label>
-          <input type="password" id="input-apikey" placeholder="sk-...">
-        </div>
-        <div class="field">
-          <label>Base URL</label>
-          <input type="text" id="input-baseurl" placeholder="https://api.openai.com/v1">
-          <p class="hint">当前仅内置支持 OpenAI、阿里云百炼和火山方舟。</p>
-        </div>
-        <div class="field">
-          <label>模型名称</label>
-          <input type="text" id="input-model" placeholder="gpt-4o-mini">
-        </div>
-        <div class="field">
-          <label>并发量</label>
-          <input type="number" id="input-concurrency" min="1" max="10" step="1" placeholder="5">
-          <p class="hint">并发越高，速度越快，但更容易触发限流或消耗额度。建议 1-10。</p>
-        </div>
-        <div class="field-row">
-          <button id="btn-test" class="btn-secondary">测试连接</button>
-          <button id="btn-test-concurrency" class="btn-secondary">测试并发</button>
-          <span id="test-status" class="status"></span>
-        </div>
-        <span id="concurrency-status" class="status"></span>
-      </section>
+    <div class="sidebar-spacer"></div>
 
-      <section>
-        <h2>翻译范围</h2>
-        <div class="field">
-          <select id="select-scan-mode">
-            <option value="full">全面翻译模式</option>
-            <option value="article">正文翻译模式</option>
-          </select>
-          <p class="hint">全面翻译模式会处理导航、按钮、目录、页脚和正文，并尽量给短文本也加中文提示；正文翻译模式主要处理文章正文。</p>
-        </div>
-      </section>
+    <div class="sidebar-footer">v0.9.1 · 浏览器扩展</div>
+  </nav>
 
-      <section>
-        <h2>阅读等级</h2>
-        <div class="field">
-          <select id="select-level">
-            <option value="L1">L1</option>
-            <option value="L2">L2</option>
-            <option value="L3">L3</option>
-            <option value="L4">L4</option>
-            <option value="L5">L5</option>
-          </select>
-          <p class="hint">L1 标注最多，L5 标注最少。</p>
-        </div>
-      </section>
+  <!-- 内容区 -->
+  <main class="content">
 
-      <section>
-        <h2>阅读能力测试</h2>
-        <p class="hint">如果你不确定该选哪个等级，可以先看一段样例。系统会按当前等级生成标注，你再判断是要更多标注、还是更少标注。</p>
-        <div class="level-test">
-          <div class="level-test-header">
-            <span class="level-test-label">当前测试等级</span>
-            <span id="test-level-value" class="level-test-value">L3</span>
+    <!-- 基础设置 -->
+    <div id="tab-basic" class="tab-content active">
+      <div class="content-header">
+        <h1>基础设置</h1>
+        <p>配置翻译引擎与核心阅读参数</p>
+      </div>
+
+      <!-- 接口配置 -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8 7V3M16 7V3M7 12H17M9 21H15C16.66 21 18 19.66 18 18V10C18 8.34 16.66 7 15 7H9C7.34 7 6 8.34 6 10V18C6 19.66 7.34 21 9 21Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <button id="btn-start-level-test" class="btn-secondary" type="button">开始测试</button>
-          <div id="level-test-sample" class="level-test-sample" hidden>
-            <div id="level-test-loading" class="loading" hidden>正在生成样例...</div>
-            <div id="level-test-content" class="samples"></div>
-            <div class="level-test-actions">
-              <button id="btn-test-easier" class="btn-secondary" type="button">需要更多标注</button>
-              <button id="btn-test-ok" class="btn-primary" type="button">刚刚好，使用这个等级</button>
-              <button id="btn-test-harder" class="btn-secondary" type="button">需要更少标注</button>
+          <div class="section-title">接口配置</div>
+          <span class="section-spacer"></span>
+          <span id="api-status-indicator" class="status-dot-group">
+            <span class="status-dot disconnected"></span>
+            <span class="status-dot-text">未连接</span>
+          </span>
+        </div>
+        <div class="section-body">
+          <div class="form-row">
+            <label class="form-label">服务商</label>
+            <div class="form-control">
+              <select id="select-provider">
+                <option value="openai">OpenAI</option>
+                <option value="aliyun">阿里云百炼 / 通义千问</option>
+                <option value="volcengine">火山方舟 / 豆包</option>
+                <option value="zhipu">智谱AI</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="kimi">Kimi</option>
+                <option value="minimax">MiniMax</option>
+              </select>
             </div>
-            <span id="level-test-status" class="status"></span>
+          </div>
+          <div class="form-row">
+            <label class="form-label">接口密钥</label>
+            <div class="form-control">
+              <div class="input-with-btn">
+                <div class="input-clearable">
+                  <input type="password" id="input-apikey" class="input input-password" placeholder="填写服务商提供的接口密钥，仅保存在本机" autocomplete="off" spellcheck="false">
+                  <button class="input-clear-btn" type="button" tabindex="-1" aria-label="清除">
+                    <svg class="ui-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <button id="btn-test" class="btn btn-secondary btn-sm">测试并保存</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="form-label">接口地址</label>
+            <div class="form-control">
+              <div class="input-clearable">
+                <input type="text" id="input-baseurl" class="input" placeholder="">
+                <button class="input-clear-btn" type="button" tabindex="-1" aria-label="清除">
+                  <svg class="ui-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="form-label">模型名称</label>
+            <div class="form-control">
+              <div class="input-clearable">
+                <input type="text" id="input-model" class="input" placeholder="">
+                <button class="input-clear-btn" type="button" tabindex="-1" aria-label="清除">
+                  <svg class="ui-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="form-label">并发量</label>
+            <div class="form-control concurrency-control">
+              <input type="number" id="input-concurrency" class="input input-num" min="1" max="10" step="1" placeholder="3">
+              <button id="btn-test-concurrency" class="btn btn-secondary btn-sm">测试并发</button>
+              <p class="hint concurrency-hint">默认 3，阅读更稳也更省；余额紧张时可调为 1。</p>
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="form-label">深度思考</label>
+            <div class="form-control">
+              <select id="select-thinking">
+                <option value="off">关闭（默认，速度更快、成本更低）</option>
+                <option value="on">打开（可能更准，但更慢、更耗 token）</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row form-row-hint">
+            <label class="form-label"></label>
+            <div class="form-control">
+              <p class="hint">配置只保存在本机浏览器。填写或修改后，需点击“测试并保存”，成功后才会用于翻译。</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <button id="btn-save" class="btn-primary">保存设置</button>
-      <span id="save-status" class="status"></span>
+      <!-- 阅读能力 -->
+      <section id="level-test-section" class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 5.5C4 4.67 4.67 4 5.5 4H10C11.1 4 12 4.9 12 6V20C12 18.9 11.1 18 10 18H5.5C4.67 18 4 17.33 4 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M20 5.5C20 4.67 19.33 4 18.5 4H14C12.9 4 12 4.9 12 6V20C12 18.9 12.9 18 14 18H18.5C19.33 18 20 17.33 20 16.5V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="section-title">阅读能力</div>
+          <span class="section-spacer"></span>
+          <span id="test-level-value" class="level-badge-inline">L3</span>
+        </div>
+
+        <!-- 隐藏 select，保留数据绑定 -->
+        <select id="select-level" style="display:none" data-no-custom>
+          <option value="L1">L1 — 初中</option>
+          <option value="L2">L2 — 高中</option>
+          <option value="L3">L3 — 四级</option>
+          <option value="L4">L4 — 六级/考研</option>
+          <option value="L5">L5 — 英专/留学</option>
+        </select>
+
+        <!-- 视觉等级条 -->
+        <div class="level-bar">
+          <div class="level-bar-item lv-L1" data-level="L1">
+            <div class="lv-code">L1</div>
+            <div class="lv-name">初中</div>
+          </div>
+          <div class="level-bar-item lv-L2" data-level="L2">
+            <div class="lv-code">L2</div>
+            <div class="lv-name">高中</div>
+          </div>
+          <div class="level-bar-item lv-L3 active" data-level="L3">
+            <div class="lv-code">L3</div>
+            <div class="lv-name">四级</div>
+          </div>
+          <div class="level-bar-item lv-L4" data-level="L4">
+            <div class="lv-code">L4</div>
+            <div class="lv-name">六级/考研</div>
+          </div>
+          <div class="level-bar-item lv-L5" data-level="L5">
+            <div class="lv-code">L5</div>
+            <div class="lv-name">英专/留学</div>
+          </div>
+        </div>
+
+        <!-- 当前等级说明 -->
+        <div id="level-detail" class="level-detail">
+          <strong id="level-detail-title">L3 四级</strong> — <span id="level-detail-desc">约4500词汇，日常阅读基本无障碍，主要标注学术词和正式表达</span>
+        </div>
+
+        <!-- 等级详情展开 -->
+
+        <!-- 等级校准 -->
+        <div class="calibrate-row">
+          不确定等级？<button id="btn-start-level-test" class="calibrate-link" type="button">点此生成样例验证</button>
+        </div>
+
+        <!-- 测试结果区域 -->
+        <div id="level-test-sample" class="level-test-area" hidden>
+          <div id="level-test-loading" class="loading" hidden>正在生成样例...</div>
+          <div id="level-test-content" class="samples"></div>
+          <div class="level-test-actions">
+            <button id="btn-test-easier" class="btn btn-secondary btn-sm" type="button">更多标注</button>
+            <button id="btn-test-ok" class="btn btn-primary btn-sm" type="button">刚刚好</button>
+            <button id="btn-test-harder" class="btn btn-secondary btn-sm" type="button">更少标注</button>
+          </div>
+          <span id="level-test-status" class="status"></span>
+        </div>
+      </section>
+
+      <span id="save-status" class="status auto-save-hint">设置自动保存</span>
     </div>
 
-    <!-- Prompt 工作流 -->
-    <div id="tab-workflow" class="tab-content">
+    <!-- 翻译偏好 -->
+    <div id="tab-prefs" class="tab-content">
+      <div class="content-header">
+        <h1>翻译偏好</h1>
+        <p>调整翻译范围、显示样式与连续阅读行为</p>
+      </div>
 
-      <section>
-        <h2>工作流程</h2>
-        <div class="workflow-diagram">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div class="step-text">页面加载后，扫描可见区域的文本段落</div>
+      <!-- 翻译范围 -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M3.5 12H20.5M12 3.5C14 5.7 15 8.5 15 12C15 15.5 14 18.3 12 20.5M12 3.5C10 5.7 9 8.5 9 12C9 15.5 10 18.3 12 20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
           </div>
-          <div class="arrow">↓</div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div class="step-text">将段落文本 + 用户英语水平发送给 LLM</div>
+          <div class="section-title">翻译范围</div>
+        </div>
+        <div class="section-body">
+          <div class="form-row">
+            <label class="form-label">对照翻译</label>
+            <div class="form-control">
+              <select id="select-paragraph-translation-mode">
+                <option value="on">开启（段落下方显示中文对照）</option>
+                <option value="off">关闭（只标注生词）</option>
+              </select>
+            </div>
           </div>
-          <div class="arrow">↓</div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div class="step-text">LLM 根据下方 Prompt 识别生词，返回 JSON</div>
+          <div class="form-row">
+            <label class="form-label">翻译范围</label>
+            <div class="form-control">
+              <select id="select-scan-mode">
+                <option value="full">全面翻译模式</option>
+                <option value="article">正文翻译模式</option>
+              </select>
+            </div>
           </div>
-          <div class="arrow">↓</div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <div class="step-text">在页面中对生词加粗并插入括号释义</div>
+          <div class="form-row">
+            <label class="form-label">连续阅读</label>
+            <div class="form-control">
+              <select id="select-auto-translate">
+                <option value="false">关闭（默认，手动点击翻译）</option>
+                <option value="true">开启（新页面继续标注，会增加请求量）</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>
 
-      <section>
-        <h2>系统 Prompt</h2>
-        <p class="hint">这是发送给 LLM 的指令。你可以编辑它来自定义标注行为（比如加上词性、改用英文释义等）。</p>
-        <div class="level-help">
-          <button id="btn-level-help" class="help-toggle" type="button" aria-expanded="false" aria-controls="level-help-panel">?</button>
-          <span class="level-help-label">查看 L1-L5 的完整等级说明</span>
+      <!-- 显示偏好 -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 19L19 5M6 6H6.01M18 18H18.01M8 16H8.01M16 8H16.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="section-title">显示偏好</div>
         </div>
-        <div id="level-help-panel" class="level-help-panel" hidden>
-          <div class="level-help-item">
-            <h3>L1</h3>
-            <p><strong>能力参考：</strong>约等于 IELTS 2 分及以下</p>
-            <p><strong>阅读特点：</strong>几乎没有英语阅读基础，只认识最基本的功能词和代词。</p>
-            <p><strong>标注策略：</strong>绝大多数实义词都需要标注，每段 10-20 个词。</p>
+        <div class="section-body">
+          <div class="form-row">
+            <label class="form-label">字号缩放</label>
+            <div class="form-control">
+              <div class="font-size-control">
+                <button id="btn-font-decrease" class="btn btn-icon" type="button" aria-label="缩小字号">
+                  <svg class="ui-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 19H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <span id="font-size-display" class="font-size-display">100%</span>
+                <button id="btn-font-increase" class="btn btn-icon" type="button" aria-label="放大字号">
+                  <svg class="ui-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 14V22M14 18H22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="level-help-item">
-            <h3>L2</h3>
-            <p><strong>能力参考：</strong>约等于 IELTS 4 分</p>
-            <p><strong>阅读特点：</strong>认识常见简单词汇，但中等难度词和短语容易卡住。</p>
-            <p><strong>标注策略：</strong>标注中低频词、抽象词、较长词和不常见短语，每段 6-12 个词。</p>
-          </div>
-          <div class="level-help-item">
-            <h3>L3</h3>
-            <p><strong>能力参考：</strong>约等于 IELTS 5.5 分</p>
-            <p><strong>阅读特点：</strong>能读懂大部分日常内容，但学术词汇和书面表达会卡住。</p>
-            <p><strong>标注策略：</strong>只标注学术词、专业表达和语义不直观的短语，每段 3-6 个词。</p>
-          </div>
-          <div class="level-help-item">
-            <h3>L4</h3>
-            <p><strong>能力参考：</strong>约等于 IELTS 7 分</p>
-            <p><strong>阅读特点：</strong>能流畅阅读大部分英文内容，词汇量较大。</p>
-            <p><strong>标注策略：</strong>只标注低频专业术语和罕见书面表达，每段最多 1-2 个词。</p>
-          </div>
-          <div class="level-help-item">
-            <h3>L5</h3>
-            <p><strong>能力参考：</strong>约等于 IELTS 8 分及以上</p>
-            <p><strong>阅读特点：</strong>接近母语阅读水平，几乎所有英文内容都能直接理解。</p>
-            <p><strong>标注策略：</strong>只标注极罕见的专业术语，绝大多数段落无需标注。</p>
+          <div class="form-row">
+            <label class="form-label">翻译颜色</label>
+            <div class="form-control">
+              <div class="color-picker-row">
+                <button class="color-swatch" data-color="#818cf8" style="background:#818cf8" title="靛蓝（默认）"></button>
+                <button class="color-swatch" data-color="#6366f1" style="background:#6366f1" title="深紫"></button>
+                <button class="color-swatch" data-color="#3b82f6" style="background:#3b82f6" title="蓝色"></button>
+                <button class="color-swatch" data-color="#10b981" style="background:#10b981" title="绿色"></button>
+                <button class="color-swatch" data-color="#f59e0b" style="background:#f59e0b" title="橙色"></button>
+                <button class="color-swatch" data-color="#ef4444" style="background:#ef4444" title="红色"></button>
+                <button class="color-swatch" data-color="#6b7280" style="background:#6b7280" title="灰色"></button>
+                <label class="color-custom" title="自定义颜色">
+                  <input type="color" id="input-translation-color" value="#818cf8">
+                  <span class="color-custom-preview">
+                    <svg class="ui-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 6V18M6 12H18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
-        <textarea id="prompt-editor" rows="16"></textarea>
-        <div class="prompt-actions">
-          <button id="btn-save-prompt" class="btn-primary">保存 Prompt</button>
-          <button id="btn-reset-prompt" class="btn-secondary">恢复默认</button>
-          <span id="prompt-status" class="status"></span>
+      </section>
+
+      <!-- 生词本 -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 4H17C18.1 4 19 4.9 19 6V20H7C5.9 20 5 19.1 5 18V6C5 4.9 5.9 4 7 4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M9 8H15M9 12H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="section-title">生词本</div>
+        </div>
+        <div class="section-body">
+          <div class="form-row vocab-form-row">
+            <label class="form-label">词汇管理</label>
+            <div class="form-control vocab-form-control">
+              <button id="btn-open-vocab" class="btn btn-secondary btn-sm" type="button">打开生词本</button>
+              <span id="vocab-count" class="vocab-count"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 提示词工作流 -->
+    <div id="tab-workflow" class="tab-content">
+      <div class="content-header">
+        <h1>提示词工作流</h1>
+        <p>查看翻译流程与自定义系统指令</p>
+      </div>
+
+      <!-- 工作流程 -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 7H11M13 7H20M4 17H7M9 17H20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <circle cx="12" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="8" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="section-title">工作流程</div>
+        </div>
+        <div class="section-body">
+          <div class="workflow-pipeline">
+            <div class="wf-node">
+              <div class="wf-node-num">1</div>
+              <div class="wf-node-label">扫描可见区域的文本段落</div>
+            </div>
+            <div class="wf-connector"></div>
+            <div class="wf-node">
+              <div class="wf-node-num">2</div>
+              <div class="wf-node-label">将段落和用户等级发送给 LLM</div>
+            </div>
+            <div class="wf-connector"></div>
+            <div class="wf-node">
+              <div class="wf-node-num">3</div>
+              <div class="wf-node-label">LLM 返回生词标注和逐句翻译</div>
+            </div>
+            <div class="wf-connector"></div>
+            <div class="wf-node">
+              <div class="wf-node-num">4</div>
+              <div class="wf-node-label">在页面中渲染标注与中文对照</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 系统 Prompt -->
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 4H14L19 9V20H7V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M14 4V9H19M9 13H15M9 17H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="section-title">系统 Prompt</div>
+        </div>
+        <div class="section-body prompt-body">
+          <p class="prompt-hint">发送给 LLM 的指令。可编辑来自定义标注行为。</p>
+          <textarea id="prompt-editor" rows="16"></textarea>
+          <div class="prompt-actions">
+            <button id="btn-save-prompt" class="btn btn-primary btn-sm">保存 Prompt</button>
+            <button id="btn-reset-prompt" class="btn btn-secondary btn-sm">恢复默认</button>
+            <span id="prompt-status" class="status"></span>
+          </div>
         </div>
       </section>
     </div>
 
     <!-- 用量统计 -->
     <div id="tab-usage" class="tab-content">
-      <section>
-        <h2>Token 用量统计</h2>
-        <p class="hint">统计来自各服务商返回的 usage 字段。少数接口不返回 usage 时，只记录请求次数。</p>
-        <div class="usage-actions">
-          <button id="btn-refresh-usage" class="btn-secondary" type="button">刷新</button>
-          <span id="usage-status" class="status"></span>
+      <div class="content-header">
+        <h1>用量统计</h1>
+        <p>Token 用量来自各服务商返回的 usage 字段</p>
+      </div>
+
+      <section class="section-card">
+        <div class="section-header">
+          <div class="section-icon">
+            <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 19H20M6 16L10 12L13 15L18 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="section-title">Token 用量</div>
+          <span class="section-spacer"></span>
+          <button id="btn-refresh-usage" class="btn btn-secondary btn-sm" type="button">刷新</button>
         </div>
-        <div id="usage-updated" class="hint"></div>
-        <div id="usage-panels" class="usage-panels"></div>
-        <div class="usage-danger-zone">
-          <button id="btn-clear-usage" class="btn-danger" type="button">清空统计</button>
-          <p class="hint">清空后会删除本机保存的 token 用量记录，此操作不可恢复。</p>
+        <div class="section-body">
+          <span id="usage-status" class="status" style="padding: 0 20px;"></span>
+          <div id="usage-updated" class="hint" style="padding: 8px 20px;"></div>
+          <div id="usage-panels" class="usage-panels"></div>
+        </div>
+      </section>
+
+      <section class="section-card section-card-danger">
+        <div class="section-body">
+          <div class="form-row">
+            <label class="form-label">危险操作</label>
+            <div class="form-control">
+              <button id="btn-clear-usage" class="btn btn-danger btn-sm" type="button">清空统计</button>
+              <span class="hint" style="margin-left: 8px;">清空后不可恢复</span>
+            </div>
+          </div>
         </div>
       </section>
     </div>
-  </div>
 
+  </main>
+</div>
+
+<div id="usage-clear-modal" class="modal-backdrop" hidden>
+  <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="usage-clear-title">
+    <div class="confirm-icon" aria-hidden="true">
+      <svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M12 7V13M12 17H12.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="confirm-copy">
+      <h2 id="usage-clear-title">清空用量统计？</h2>
+      <p>将删除全部本机 token 用量记录，此操作不可恢复。</p>
+    </div>
+    <div class="confirm-actions">
+      <button id="btn-usage-clear-cancel" class="btn btn-secondary" type="button">取消</button>
+      <button id="btn-usage-clear-confirm" class="btn btn-danger-confirm" type="button">确认清空</button>
+    </div>
+  </section>
+</div>
+
+  <script src="custom-dropdown.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

@@ -2,39 +2,158 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="custom-dropdown.css">
 </head>
 <body>
   <!-- 未配置状态 -->
   <div id="page-setup" style="display:none">
-    <h1>WordWin</h1>
+    <img class="setup-icon" src="icon-logo.png" alt="自适应翻译">
+    <h1>自适应翻译</h1>
     <p class="tagline">不翻译整篇文章，只翻译你不会的词</p>
-    <p class="setup-hint">请先完成 API 配置</p>
+    <div class="setup-panel" aria-label="配置说明">
+      <div class="setup-panel-title">完成接口配置后开始使用</div>
+      <div class="setup-panel-row">
+        <span class="setup-dot"></span>
+        <span>接口密钥只保存在本机浏览器</span>
+      </div>
+      <div class="setup-panel-row">
+        <span class="setup-dot"></span>
+        <span>默认使用低成本的通义千问模型</span>
+      </div>
+    </div>
     <button id="btn-go-settings" class="btn-primary">前往设置</button>
   </div>
 
   <!-- 正常使用状态 -->
   <div id="page-main" style="display:none">
     <div class="header">
-      <h1>WordWin</h1>
+      <div class="header-left">
+        <h1>自适应翻译</h1>
+        <span class="version-badge">v0.9.1</span>
+      </div>
+      <div class="header-right">
+        <button id="btn-vocab" class="btn-icon" title="生词本">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </button>
+        <button id="btn-settings" class="btn-icon" title="设置">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
+    <div class="page-summary" aria-live="polite">
+      <div class="summary-item">
+        <span id="summary-status-dot" class="summary-dot idle"></span>
+        <div>
+          <div id="summary-status-title" class="summary-title">当前页未翻译</div>
+          <div id="summary-status-detail" class="summary-detail">点击下方按钮开始标注</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快捷设置 -->
+    <div class="card">
+      <div class="card-header">翻译控制</div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">段落翻译</span>
+          <span class="control-hint">逐句中英对照</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-paragraph" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">连续阅读模式</span>
+          <span class="control-hint">打开后新页面也会继续标注</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-auto-translate">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="card-header">显示设置</div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">阅读等级</span>
+          <span class="control-hint">词汇量越高标注越少</span>
+        </div>
+        <div class="level-control">
+          <button id="btn-level-down" class="btn-level-step" title="降低等级" aria-label="降低等级">
+            <svg class="ui-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 12H18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <span id="level-badge" class="level-badge level-L3">L3</span>
+          <button id="btn-level-up" class="btn-level-step" title="提高等级" aria-label="提高等级">
+            <svg class="ui-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 6V18M6 12H18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">扫描模式</span>
+          <span class="control-hint">全面含导航按钮，正文仅文章</span>
+        </div>
+        <select id="select-scan-mode" class="select-compact">
+          <option value="full">全面</option>
+          <option value="article">正文</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">标注字号</span>
+          <span class="control-hint">释义文字大小</span>
+        </div>
+        <div class="font-control">
+          <button id="btn-font-down" class="btn-font-step" title="缩小" aria-label="缩小字号">
+            <svg class="ui-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 19H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <span id="font-size-value" class="font-value">100%</span>
+          <button id="btn-font-up" class="btn-font-step" title="放大" aria-label="放大字号">
+            <svg class="ui-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 14V22M14 18H22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">标注颜色</span>
+          <span class="control-hint">释义与高亮色</span>
+        </div>
+        <input type="color" id="color-picker" class="color-picker" value="#818cf8" title="选择标注颜色">
+      </div>
+    </div>
+
+    <!-- 翻译按钮 -->
     <button id="btn-toggle" class="btn-toggle">翻译当前页</button>
-    <div id="status-card" class="status-card" hidden>
-      <div id="status-title" class="status-title">当前页状态</div>
-      <div id="status-text" class="status-text"></div>
-    </div>
-    <div id="toast" class="toast"></div>
-    <p class="popup-hint">只翻译当前页面；切换标签页后仍会继续完成，不会自动翻译其他页面。</p>
 
-    <button id="btn-settings" class="btn-icon" title="设置">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    </button>
+    <!-- 底部状态 -->
+    <div id="status-footer" class="status-footer" hidden>
+      <span id="status-dot" class="status-dot"></span>
+      <span id="status-text" class="status-text"></span>
+    </div>
+
+    <div id="toast" class="toast"></div>
   </div>
 
+  <script src="custom-dropdown.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

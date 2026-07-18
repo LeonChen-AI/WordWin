@@ -1,7 +1,15 @@
-// WordWin Options v5 设置页逻辑
+// AdaptiveTranslation Options 0.9.1 设置页逻辑
 
 const $ = (sel) => document.querySelector(sel);
 const LEVELS = ['L1', 'L2', 'L3', 'L4', 'L5'];
+let lastFocusedBeforeUsageModal = null;
+const LEVEL_INFO = {
+  L1: { name: '初中', desc: '约1500基础词汇，标注大部分常见词，适合英语基础薄弱者' },
+  L2: { name: '高中', desc: '约3500常用词汇，简单词不标，中等难度词会被标注' },
+  L3: { name: '四级', desc: '约4500词汇，日常阅读基本无障碍，主要标注学术词和正式表达' },
+  L4: { name: '六级/考研', desc: '约6000词汇，大部分英文内容可流畅阅读，仅标注低频专业术语' },
+  L5: { name: '英专/留学', desc: '10000+词汇，接近母语阅读体验，极少标注' },
+};
 const SERVICE_PRESETS = {
   openai: {
     baseUrl: 'https://api.openai.com/v1',
@@ -10,17 +18,38 @@ const SERVICE_PRESETS = {
   },
   aliyun: {
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    model: 'qwen-plus',
+    model: 'qwen3.5-flash',
     hint: '阿里云百炼 OpenAI 兼容接口。推理/思考模式会映射为 enable_thinking。'
   },
   volcengine: {
     baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-    model: 'doubao-1-5-pro-32k-250115',
-    hint: '火山方舟 OpenAI 兼容接口。模型名也可以填写你的方舟推理接入点 ID。'
+    model: 'doubao-seed-2-0-pro-260215',
+    hint: '火山方舟 OpenAI 兼容接口。Coding Plan 用户请将地址改为 https://ark.cn-beijing.volces.com/api/coding/v3'
+  },
+  zhipu: {
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-5.2',
+    hint: '智谱AI OpenAI 兼容接口，支持 GLM 系列模型。'
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-v4-flash',
+    hint: 'DeepSeek 官方接口，支持 DeepSeek-V4 等模型。'
+  },
+  kimi: {
+    baseUrl: 'https://api.moonshot.cn/v1',
+    model: 'kimi-k2.6',
+    hint: '月之暗面 Kimi OpenAI 兼容接口，支持长上下文。'
+  },
+  minimax: {
+    baseUrl: 'https://api.minimaxi.chat/v1',
+    model: 'MiniMax-M3',
+    hint: 'MiniMax OpenAI 兼容接口，支持 M 系列模型。'
   }
 };
 const THINKING_MODES = ['off', 'on'];
 const SCAN_MODES = ['full', 'article'];
+const PARAGRAPH_TRANSLATION_MODES = ['on', 'off'];
 const USAGE_WINDOWS = [
   { key: '1h', label: '最近 1 小时', ms: 60 * 60 * 1000 },
   { key: '24h', label: '最近 24 小时', ms: 24 * 60 * 60 * 1000 },
@@ -61,15 +90,19 @@ function normalizeLevel(level) {
 
 function normalizeConcurrency(value) {
   const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) return 5;
+  if (Number.isNaN(parsed)) return 3;
   return Math.min(10, Math.max(1, parsed));
 }
 
 function inferServiceProvider(baseUrl) {
   const url = String(baseUrl || '').toLowerCase();
-  if (url.includes('dashscope') || url.includes('aliyuncs.com/compatible-mode')) return 'aliyun';
-  if (url.includes('volces.com/api/v3') || url.includes('ark.cn-beijing.volces.com')) return 'volcengine';
   if (url.includes('api.openai.com')) return 'openai';
+  if (url.includes('dashscope') || url.includes('aliyuncs.com/compatible-mode')) return 'aliyun';
+  if (url.includes('volces.com/api/v3') || url.includes('volces.com/api/coding') || url.includes('ark.cn-beijing.volces.com')) return 'volcengine';
+  if (url.includes('bigmodel.cn') || url.includes('open.bigmodel')) return 'zhipu';
+  if (url.includes('deepseek.com') || url.includes('api.deepseek')) return 'deepseek';
+  if (url.includes('moonshot.cn') || url.includes('api.moonshot')) return 'kimi';
+  if (url.includes('minimaxi.chat') || url.includes('minimax.chat')) return 'minimax';
   return 'openai';
 }
 
@@ -88,6 +121,10 @@ function normalizeThinkingMode(value) {
 
 function normalizeScanMode(value) {
   return SCAN_MODES.includes(value) ? value : 'full';
+}
+
+function normalizeParagraphTranslationMode(value) {
+  return PARAGRAPH_TRANSLATION_MODES.includes(value) ? value : 'on';
 }
 
 function getApiConfigFromForm() {
@@ -139,17 +176,136 @@ function buildTestRequestBody(serviceProvider, model, thinkingMode, content) {
   return body;
 }
 
-function updateProviderHint() {
-  const provider = normalizeProvider($('#select-provider').value, $('#input-baseurl').value);
-  const preset = getProviderPreset(provider);
-  $('#provider-hint').textContent = preset.hint;
+function extractApiErrorMessage(errorText) {
+  const raw = String(errorText || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = JSON.parse(raw);
+    const message = parsed?.error?.message || parsed?.message || parsed?.msg || '';
+    if (message) return String(message);
+  } catch (e) {
+    // Non-JSON responses are common for gateway/network errors.
+  }
+
+  return raw.replace(/\s+/g, ' ').slice(0, 160);
+}
+
+function describeApiFailure(status, errorText) {
+  const message = extractApiErrorMessage(errorText);
+  if (message) return `失败 ${status}：${message}`;
+  if (status === 401 || status === 403) return '认证失败：请检查接口密钥';
+  if (status === 404) return '接口不存在：请检查接口地址';
+  if (status === 429) return '请求受限：额度不足或频率过高';
+  if (status >= 500) return '服务暂不可用：请稍后重试';
+  return `连接失败：HTTP ${status}`;
 }
 
 function applyProviderPreset(provider) {
+  // Clear all API fields when switching to an unconfigured provider
+  $('#input-apikey').value = '';
+  $('#input-baseurl').value = '';
+  $('#input-model').value = '';
+  updateAllClearBtns();
+  updateConnectionIndicator();
+}
+
+// --- Per-provider config persistence ---
+// providerConfigs = { openai: {apiKey, baseUrl, model}, zhipu: {...}, ... }
+// Only saved on successful test connection. Never auto-saved on blur.
+
+function getFormApiConfig() {
+  return {
+    apiKey: $('#input-apikey').value.trim(),
+    baseUrl: $('#input-baseurl').value.trim(),
+    model: $('#input-model').value.trim()
+  };
+}
+
+function loadProviderConfig(provider, configs) {
+  const saved = configs && configs[provider];
   const preset = getProviderPreset(provider);
-  $('#input-baseurl').value = preset.baseUrl;
-  $('#input-model').value = preset.model;
-  updateProviderHint();
+  if (saved) {
+    $('#input-apikey').value = saved.apiKey || '';
+    $('#input-baseurl').value = saved.baseUrl || preset.baseUrl || '';
+    $('#input-model').value = saved.model || preset.model || '';
+  } else {
+    $('#input-apikey').value = '';
+    $('#input-baseurl').value = preset.baseUrl || '';
+    $('#input-model').value = preset.model || '';
+  }
+  updateAllClearBtns();
+  updateConnectionIndicator();
+}
+
+function syncGlobalApiConfigFromProvider(provider, configs) {
+  const saved = configs && configs[provider];
+  if (!saved || !saved.apiKey) return;
+  const normalizedProvider = normalizeProvider(provider, saved.baseUrl);
+  const preset = getProviderPreset(normalizedProvider);
+  chrome.storage.local.set({
+    serviceProvider: normalizedProvider,
+    apiKey: saved.apiKey || '',
+    baseUrl: (saved.baseUrl || preset.baseUrl).replace(/\/+$/, ''),
+    model: saved.model || preset.model
+  });
+}
+
+function migrateLegacyApiConfig(data) {
+  const provider = normalizeProvider(data.serviceProvider, data.baseUrl);
+  const configs = { ...(data.providerConfigs || {}) };
+  const hasLegacyConfig = Boolean(data.apiKey || data.baseUrl || data.model);
+  const hasProviderConfig = Boolean(configs[provider] && (configs[provider].apiKey || configs[provider].baseUrl || configs[provider].model));
+
+  if (hasLegacyConfig && !hasProviderConfig) {
+    configs[provider] = {
+      apiKey: data.apiKey || '',
+      baseUrl: data.baseUrl || '',
+      model: data.model || ''
+    };
+  }
+
+  return { provider, configs };
+}
+
+function updateConnectionIndicator() {
+  if (window._apiTestInProgress) return;
+  const provider = $('#select-provider').value;
+  const configs = window._providerConfigs || {};
+  const savedConfig = configs[provider];
+  const formConfig = getFormApiConfig();
+  const preset = getProviderPreset(provider);
+  const savedBaseUrl = (savedConfig?.baseUrl || preset.baseUrl || '').replace(/\/+$/, '');
+  const formBaseUrl = (formConfig.baseUrl || preset.baseUrl || '').replace(/\/+$/, '');
+  const savedModel = savedConfig?.model || preset.model || '';
+  const formModel = formConfig.model || preset.model || '';
+  const savedThinkingMode = window._savedThinkingMode || 'off';
+  const formThinkingMode = normalizeThinkingMode($('#select-thinking').value);
+  const hasSavedConfig = !!(savedConfig && savedConfig.apiKey);
+  const formHasApiKey = formConfig.apiKey.length > 0;
+  const isSameAsSaved = hasSavedConfig
+    && formConfig.apiKey === savedConfig.apiKey
+    && formBaseUrl === savedBaseUrl
+    && formModel === savedModel
+    && formThinkingMode === savedThinkingMode;
+
+  if (isSameAsSaved) {
+    updateApiStatus('已连接', 'success');
+  } else if (formHasApiKey) {
+    updateApiStatus('未保存', 'unsaved');
+  } else {
+    updateApiStatus('未连接', 'disconnected');
+  }
+}
+
+function updateApiStatus(text, type) {
+  const group = $('#api-status-indicator');
+  if (!group) return;
+  const dot = group.querySelector('.status-dot');
+  const textEl = group.querySelector('.status-dot-text');
+  textEl.textContent = text;
+  dot.className = `status-dot ${type || 'success'}`;
+  group.className = `status-dot-group ${type || 'success'}`;
 }
 
 function escapeHtml(str) {
@@ -169,6 +325,7 @@ function persistLevel(level, { saveMessage = '等级已保存', testMessage = ''
   currentTestLevel = normalizedLevel;
   $('#select-level').value = normalizedLevel;
   $('#test-level-value').textContent = normalizedLevel;
+  updateLevelBar(normalizedLevel);
 
   chrome.storage.local.set({ level: normalizedLevel }, () => {
     showStatus('#save-status', saveMessage, 'success');
@@ -188,6 +345,26 @@ function updateLevelTestBoundaryButtons() {
   btnEasier.disabled = idx <= 0;
   btnHarder.disabled = idx >= LEVELS.length - 1;
 }
+
+// --- Level Bar 交互 ---
+function updateLevelBar(level) {
+  document.querySelectorAll('.level-bar-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.level === level);
+  });
+  const info = LEVEL_INFO[level];
+  if (info) {
+    $('#level-detail-title').textContent = `${level} ${info.name}`;
+    $('#level-detail-desc').textContent = info.desc;
+  }
+}
+
+document.querySelectorAll('.level-bar-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const level = item.dataset.level;
+    $('#select-level').value = level;
+    $('#select-level').dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});
 
 const LEGACY_DEFAULT_PROMPT = `你是一个英语学习助手。用户当前的阅读等级是【{{level_code}}】。
 
@@ -212,82 +389,95 @@ const LEGACY_DEFAULT_PROMPT = `你是一个英语学习助手。用户当前的�
 {{text}}`;
 
 // 默认 Prompt（必须与 background.js 中的 DEFAULT_PROMPT 保持一致）
-const DEFAULT_PROMPT = `你是一个英语学习助手。用户当前的阅读等级是【{{level_code}}】。
+const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的词汇水平，从英文段落中找出用户可能不认识的词或短语，给出简短中文释义。
 
-等级参考：{{level_reference}}
+用户等级：{{level_code}}
+词汇水平：{{level_reference}}
 标注策略：{{level_strategy}}
-当前文本类型：{{context_hint}}
+文本类型：{{context_hint}}
 
-【硬性约束】本段最多返回 {{max_per_paragraph}} 个标注。超出此数量的一律丢弃。如果没有符合条件的词，返回空数组 []。
-
-请阅读以下英文段落，找出该水平用户可能不认识的单词或短语，并给出简短的中文释义（基于上下文语义）。
+【数量约束】没有符合条件的词时返回 []。
 
 规则：
-1. 严格控制数量：标注数不得超过上面的硬性约束
-2. 宁少勿多：用户更怕被打扰，而不是怕漏掉一个词
-3. 释义简短（2-4个字），贴合当前上下文
-4. 可以标注短语（如 "in terms of"），不局限于单词
-5. 优先标注对理解全句最关键的词，次要的词宁可不标
-6. 不要把人名、地名、机构名、模型名、评测名、产品名、纯缩写当成优先标注对象，除非它本身就是理解核心且该等级用户大概率不认识
-7. 即使一段里专有名词很多，也不要因此整段返回空。跳过这些专有名词后，继续检查剩余普通词里是否仍有 1-2 个真正会卡住用户的词
-8. 对于列表项、脚注、图注、表格说明这类短文本，只要还有会影响理解的普通难词，应尽量标出 1-2 个
+1. 释义简短，2-5 个字，贴合当前上下文语义
+2. 可以标注短语（如 "in terms of"、"by and large"），不限于单词
+3. 优先标注对理解段落最关键的词，次要词宁可不标
+4. 跳过专有名词（人名、地名、机构名、产品名、纯缩写），但其中有普通含义且用户大概率不认识的词除外（如 "Apex" 作为普通词意为"顶点"）
+5. 专有名词多不代表整段跳过——跳过专有名词后，继续检查剩余普通词中是否有用户不认识的
 
-返回 JSON 数组格式，不要返回其他内容：
+返回 JSON 数组：
 [{"word": "单词或短语", "translation": "中文释义"}]
 
 段落：
 {{text}}`;
 
-// --- 标签切换 ---
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+// --- 侧栏导航切换 ---
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    $(`#tab-${tab.dataset.tab}`).classList.add('active');
-    if (tab.dataset.tab === 'usage') {
+    item.classList.add('active');
+    $(`#tab-${item.dataset.tab}`).classList.add('active');
+    if (item.dataset.tab === 'usage') {
       loadTokenUsage();
     }
   });
 });
 
-// --- Level 说明展开 ---
-$('#btn-level-help').addEventListener('click', () => {
-  const panel = $('#level-help-panel');
-  const button = $('#btn-level-help');
-  const isHidden = panel.hasAttribute('hidden');
-
-  if (isHidden) {
-    panel.removeAttribute('hidden');
-    button.setAttribute('aria-expanded', 'true');
-  } else {
-    panel.setAttribute('hidden', '');
-    button.setAttribute('aria-expanded', 'false');
-  }
-});
-
 // --- 加载设置 ---
-chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt', 'concurrency', 'serviceProvider', 'thinkingMode', 'scanMode'], (data) => {
+chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt', 'concurrency', 'serviceProvider', 'thinkingMode', 'scanMode', 'paragraphTranslationMode', 'fontSize', 'autoTranslate', 'translationColor', 'vocabulary', '_migrated_v091', '_migrated_v092', '_migrated_v091_safe', 'providerConfigs'], (data) => {
+  const migrated = migrateLegacyApiConfig(data);
+  if (!data._migrated_v091_safe) {
+    chrome.storage.local.set({
+      providerConfigs: migrated.configs,
+      serviceProvider: migrated.provider,
+      _migrated_v091_safe: true,
+      _migrated_v091: true,
+      _migrated_v092: true
+    });
+    data.providerConfigs = migrated.configs;
+    data.serviceProvider = migrated.provider;
+  }
   const level = normalizeLevel(data.level);
   const concurrency = normalizeConcurrency(data.concurrency);
-  const serviceProvider = normalizeProvider(data.serviceProvider, data.baseUrl);
+  const serviceProvider = normalizeProvider(data.serviceProvider || migrated.provider, data.baseUrl);
   const thinkingMode = normalizeThinkingMode(data.thinkingMode);
   const scanMode = normalizeScanMode(data.scanMode);
-  const preset = getProviderPreset(serviceProvider);
+  const paragraphTranslationMode = normalizeParagraphTranslationMode(data.paragraphTranslationMode);
+  const fontSize = Number(data.fontSize) || 100;
+  const autoTranslate = data.autoTranslate === true;
+  const vocabulary = Array.isArray(data.vocabulary) ? data.vocabulary : [];
   const promptTemplate = (!data.customPrompt || data.customPrompt === LEGACY_DEFAULT_PROMPT)
     ? DEFAULT_PROMPT
     : data.customPrompt;
+  const providerConfigs = data.providerConfigs || migrated.configs || {};
+
+  // Store providerConfigs globally for change handler access
+  window._providerConfigs = providerConfigs;
+  window._savedThinkingMode = thinkingMode;
+
   $('#select-provider').value = serviceProvider;
+  $('#select-provider').dataset.currentProvider = serviceProvider;
   $('#select-thinking').value = thinkingMode;
+  $('#select-paragraph-translation-mode').value = paragraphTranslationMode;
   $('#select-scan-mode').value = scanMode;
-  $('#input-apikey').value = data.apiKey || '';
-  $('#input-baseurl').value = data.baseUrl || preset.baseUrl;
-  $('#input-model').value = data.model || preset.model;
+  $('#select-auto-translate').value = String(autoTranslate);
+
+  // Restore per-provider config (only from last successful test connection)
+  loadProviderConfig(serviceProvider, providerConfigs);
+  syncGlobalApiConfigFromProvider(serviceProvider, providerConfigs);
   $('#input-concurrency').value = concurrency;
   $('#select-level').value = level;
   $('#test-level-value').textContent = level;
+  updateLevelBar(level);
   $('#prompt-editor').value = promptTemplate;
   currentTestLevel = level;
+
+  updateFontSizeDisplay(fontSize);
+  const translationColor = data.translationColor || '#818cf8';
+  $('#input-translation-color').value = translationColor;
+  updateActiveColorSwatch(translationColor);
+  updateVocabCount(vocabulary.length);
 
   if (data.level !== level) {
     chrome.storage.local.set({ level });
@@ -304,33 +494,39 @@ chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt',
   if (data.scanMode !== scanMode) {
     chrome.storage.local.set({ scanMode });
   }
+  if (data.paragraphTranslationMode !== paragraphTranslationMode) {
+    chrome.storage.local.set({ paragraphTranslationMode });
+  }
   if (data.customPrompt !== promptTemplate) {
     chrome.storage.local.set({ customPrompt: promptTemplate });
   }
 
-  updateProviderHint();
   updateLevelTestBoundaryButtons();
 });
 
 $('#select-provider').addEventListener('change', () => {
-  applyProviderPreset($('#select-provider').value);
+  const newProvider = $('#select-provider').value;
+  const configs = window._providerConfigs || {};
+
+  // Load new provider's saved config (or preset-only fields if not configured).
+  loadProviderConfig(newProvider, configs);
+
+  // Only switch the active translation engine when this provider already has
+  // a tested config. Unconfigured provider changes should stay as form edits.
+  $('#select-provider').dataset.currentProvider = newProvider;
+  if (configs[newProvider]?.apiKey) {
+    syncGlobalApiConfigFromProvider(newProvider, configs);
+    showStatus('#save-status', '已切换到已保存的服务商配置', 'success');
+  } else {
+    showStatus('#save-status', '当前服务商尚未保存，测试通过后才会用于翻译', 'loading');
+  }
 });
 
-$('#input-baseurl').addEventListener('input', updateProviderHint);
-
-// --- 保存设置 ---
-$('#btn-save').addEventListener('click', () => {
-  const apiConfig = getApiConfigFromForm();
-  const settings = {
-    ...apiConfig,
-    level: $('#select-level').value,
-    scanMode: normalizeScanMode($('#select-scan-mode').value)
-  };
-
-  chrome.storage.local.set(settings, () => {
-    showStatus('#save-status', '已保存', 'success');
-  });
-});
+// API config is NOT auto-saved. Only saved on successful test connection.
+$('#input-apikey').addEventListener('input', updateConnectionIndicator);
+$('#input-baseurl').addEventListener('input', updateConnectionIndicator);
+$('#input-model').addEventListener('input', updateConnectionIndicator);
+$('#select-thinking').addEventListener('change', updateConnectionIndicator);
 
 $('#select-level').addEventListener('change', () => {
   persistLevel($('#select-level').value, {
@@ -344,31 +540,43 @@ $('#select-scan-mode').addEventListener('change', () => {
   });
 });
 
+$('#select-paragraph-translation-mode').addEventListener('change', () => {
+  chrome.storage.local.set({ paragraphTranslationMode: normalizeParagraphTranslationMode($('#select-paragraph-translation-mode').value) }, () => {
+    showStatus('#save-status', '对照翻译已保存，当前页面会自动重翻', 'success');
+  });
+});
+
 $('#btn-refresh-usage').addEventListener('click', () => {
   loadTokenUsage();
 });
 
 $('#btn-clear-usage').addEventListener('click', () => {
-  const confirmed = window.confirm('确定要清空全部 token 用量统计吗？清空后不可恢复。');
-  if (!confirmed) return;
+  openUsageClearModal();
+});
 
-  chrome.storage.local.remove(['tokenUsageBuckets'], () => {
-    showStatus('#usage-status', '统计已清空', 'success');
-    renderTokenUsage([]);
-  });
+$('#btn-usage-clear-cancel').addEventListener('click', closeUsageClearModal);
+$('#btn-usage-clear-confirm').addEventListener('click', clearUsageStats);
+$('#usage-clear-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'usage-clear-modal') closeUsageClearModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#usage-clear-modal').hidden) closeUsageClearModal();
 });
 
 // --- 测试连接 ---
 $('#btn-test').addEventListener('click', async () => {
   const btn = $('#btn-test');
   btn.disabled = true;
-  showStatus('#test-status', '连接中...', 'loading');
-  showStatus('#concurrency-status', '', '');
+  window._apiTestInProgress = true;
+  showStatus('#save-status', '', '');
+  updateApiStatus('连接中...', 'loading');
 
   const { serviceProvider, thinkingMode, apiKey, baseUrl, model } = getApiConfigFromForm();
 
   if (!apiKey) {
-    showStatus('#test-status', '请填写 API Key', 'error');
+    updateApiStatus('请填写接口密钥', 'error');
+    setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 2000);
     btn.disabled = false;
     return;
   }
@@ -384,13 +592,39 @@ $('#btn-test').addEventListener('click', async () => {
     });
 
     if (response.ok) {
-      showStatus('#test-status', '连接成功', 'success');
+      // Save on test success: global config (for translation) + per-provider config
+      const provider = $('#select-provider').value;
+      const formConfig = getFormApiConfig();
+      const configs = window._providerConfigs || {};
+
+      // Save this provider's tested config
+      configs[provider] = { ...formConfig };
+      window._providerConfigs = configs;
+
+      // Save global settings for translation engine
+      const allSettings = {
+        ...getApiConfigFromForm(),
+        providerConfigs: configs,
+        level: $('#select-level').value,
+        scanMode: normalizeScanMode($('#select-scan-mode').value),
+        paragraphTranslationMode: normalizeParagraphTranslationMode($('#select-paragraph-translation-mode').value),
+        autoTranslate: $('#select-auto-translate').value === 'true'
+      };
+      chrome.storage.local.set(allSettings);
+      window._savedThinkingMode = normalizeThinkingMode($('#select-thinking').value);
+      updateApiStatus('连接成功', 'success');
+      showStatus('#save-status', '测试通过，配置已保存', 'success');
+      setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 2000);
     } else {
       const errText = await response.text();
-      showStatus('#test-status', `失败 (${response.status}): ${errText.slice(0, 80)}`, 'error');
+      updateApiStatus(`失败 (${response.status})`, 'error');
+      showStatus('#save-status', describeApiFailure(response.status, errText), 'error');
+      setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 3000);
     }
   } catch (err) {
-    showStatus('#test-status', `连接失败: ${err.message}`, 'error');
+    updateApiStatus('连接失败', 'error');
+    showStatus('#save-status', `连接失败：${err.message || '请检查网络或接口地址'}`, 'error');
+    setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 3000);
   } finally {
     btn.disabled = false;
   }
@@ -399,59 +633,67 @@ $('#btn-test').addEventListener('click', async () => {
 $('#btn-test-concurrency').addEventListener('click', async () => {
   const btn = $('#btn-test-concurrency');
   btn.disabled = true;
-  showStatus('#concurrency-status', '并发测试中...', 'loading');
-  showStatus('#test-status', '', '');
+  window._apiTestInProgress = true;
+  updateApiStatus('并发测试中...', 'loading');
 
-  const { serviceProvider, thinkingMode, apiKey, baseUrl, model, concurrency } = getApiConfigFromForm();
+  try {
+    const { serviceProvider, thinkingMode, apiKey, baseUrl, model, concurrency } = getApiConfigFromForm();
 
-  if (!apiKey) {
-    showStatus('#concurrency-status', '请填写 API Key', 'error');
-    btn.disabled = false;
-    return;
-  }
+    if (!apiKey) {
+      updateApiStatus('请填写接口密钥', 'error');
+      setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 2000);
+      return;
+    }
 
-  const requestBody = buildTestRequestBody(serviceProvider, model, thinkingMode, 'Reply with OK only.');
+    const requestBody = buildTestRequestBody(serviceProvider, model, thinkingMode, 'Reply with OK only.');
 
-  const tasks = Array.from({ length: concurrency }, () =>
-    fetch(buildChatCompletionsUrl(baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    })
-      .then(async (response) => {
-        if (response.ok) {
-          return { ok: true };
-        }
-        const errorText = await response.text();
-        return {
-          ok: false,
-          status: response.status,
-          errorText
-        };
+    const tasks = Array.from({ length: concurrency }, () =>
+      fetch(buildChatCompletionsUrl(baseUrl), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
       })
-      .catch((error) => ({
-        ok: false,
-        errorText: error.message
-      }))
-  );
+        .then(async (response) => {
+          if (response.ok) {
+            return { ok: true };
+          }
+          const errorText = await response.text();
+          return {
+            ok: false,
+            status: response.status,
+            errorText
+          };
+        })
+        .catch((error) => ({
+          ok: false,
+          errorText: error.message
+        }))
+    );
 
-  const results = await Promise.all(tasks);
-  const successCount = results.filter(result => result.ok).length;
-  const failure = results.find(result => !result.ok);
+    const results = await Promise.all(tasks);
+    const successCount = results.filter(result => result.ok).length;
+    const failure = results.find(result => !result.ok);
 
-  if (successCount === concurrency) {
-    showStatus('#concurrency-status', `并发测试成功：${concurrency}/${concurrency} 个请求全部成功`, 'success');
-  } else {
-    const detail = failure?.status
-      ? `失败 ${concurrency - successCount} 个，首个错误为 ${failure.status}`
-      : `失败 ${concurrency - successCount} 个`;
-    showStatus('#concurrency-status', `并发测试未通过：成功 ${successCount}/${concurrency}，${detail}`, 'error');
+    if (successCount === concurrency) {
+      updateApiStatus(`并发测试成功：${concurrency}/${concurrency} 全部通过`, 'success');
+      showStatus('#save-status', '并发测试通过', 'success');
+    } else {
+      const reason = failure?.status
+        ? describeApiFailure(failure.status, failure.errorText)
+        : (failure?.errorText ? `连接失败：${failure.errorText}` : '部分请求失败');
+      const detail = failure?.status
+        ? `失败 ${concurrency - successCount} 个`
+        : `失败 ${concurrency - successCount} 个`;
+      updateApiStatus(`并发未通过：${successCount}/${concurrency}，${detail}`, 'error');
+      showStatus('#save-status', reason, 'error');
+    }
+    setTimeout(() => { window._apiTestInProgress = false; updateConnectionIndicator(); }, 3000);
+  } finally {
+    btn.disabled = false;
   }
-
-  btn.disabled = false;
 });
 
 // --- Prompt 保存 ---
@@ -483,7 +725,9 @@ $('#btn-test-easier').addEventListener('click', () => {
   const idx = LEVELS.indexOf(currentTestLevel);
   if (idx <= 0) return;
   currentTestLevel = LEVELS[idx - 1];
+  $('#select-level').value = currentTestLevel;
   $('#test-level-value').textContent = currentTestLevel;
+  updateLevelBar(currentTestLevel);
   updateLevelTestBoundaryButtons();
   generateLevelTestSample(currentTestLevel);
 });
@@ -492,7 +736,9 @@ $('#btn-test-harder').addEventListener('click', () => {
   const idx = LEVELS.indexOf(currentTestLevel);
   if (idx >= LEVELS.length - 1) return;
   currentTestLevel = LEVELS[idx + 1];
+  $('#select-level').value = currentTestLevel;
   $('#test-level-value').textContent = currentTestLevel;
+  updateLevelBar(currentTestLevel);
   updateLevelTestBoundaryButtons();
   generateLevelTestSample(currentTestLevel);
 });
@@ -599,8 +845,8 @@ function renderAnnotatedHtml(text, annotations) {
   let html = '';
   for (const range of ranges) {
     html += escapeHtml(text.slice(cursor, range.start));
-    html += `<span class="wordwin-annotation">${escapeHtml(text.slice(range.start, range.end))}</span>`;
-    html += `<span class="wordwin-translation">(${escapeHtml(range.translation)})</span>`;
+    html += `<span class="adaptive-translation-annotation">${escapeHtml(text.slice(range.start, range.end))}</span>`;
+    html += `<span class="adaptive-translation-translation">(${escapeHtml(range.translation)})</span>`;
     cursor = range.end;
   }
   html += escapeHtml(text.slice(cursor));
@@ -611,8 +857,8 @@ function renderAnnotatedHtml(text, annotations) {
 function renderLevelTestSample(samples) {
   $('#level-test-content').innerHTML = samples.map(sample => `
     <div class="sample-item">
-      <strong>${escapeHtml(sample.title)}</strong>
-      <div>${sample.html}</div>
+      <span class="sample-tag">${escapeHtml(sample.title)}</span>
+      <div class="sample-text">${sample.html}</div>
     </div>
   `).join('');
 }
@@ -738,7 +984,7 @@ function renderTokenUsage(buckets) {
     const groups = aggregateUsage(safeBuckets, windowItem.ms);
     const totals = getUsageTotals(groups);
     return `
-      <section class="usage-panel">
+      <section class="usage-panel usage-window-panel">
         <div class="usage-panel-header">
           <h3>${windowItem.label}</h3>
           <div class="usage-total">
@@ -757,11 +1003,128 @@ function renderTokenUsage(buckets) {
   }).join('');
 }
 
+function openUsageClearModal() {
+  lastFocusedBeforeUsageModal = document.activeElement;
+  $('#usage-clear-modal').hidden = false;
+  document.body.classList.add('modal-open');
+  $('#btn-usage-clear-cancel').focus();
+}
+
+function closeUsageClearModal() {
+  $('#usage-clear-modal').hidden = true;
+  document.body.classList.remove('modal-open');
+  if (lastFocusedBeforeUsageModal && typeof lastFocusedBeforeUsageModal.focus === 'function') {
+    lastFocusedBeforeUsageModal.focus();
+  }
+  lastFocusedBeforeUsageModal = null;
+}
+
+function clearUsageStats() {
+  const btn = $('#btn-usage-clear-confirm');
+  btn.disabled = true;
+  btn.textContent = '清空中...';
+
+  chrome.storage.local.remove(['tokenUsageBuckets'], () => {
+    btn.disabled = false;
+    btn.textContent = '确认清空';
+    closeUsageClearModal();
+    showStatus('#usage-status', '统计已清空', 'success');
+    renderTokenUsage([]);
+  });
+}
+
 function loadTokenUsage() {
   chrome.storage.local.get(['tokenUsageBuckets'], (data) => {
     renderTokenUsage(data.tokenUsageBuckets || []);
   });
 }
+
+// --- 字号控制 ---
+$('#btn-font-decrease').addEventListener('click', () => {
+  chrome.storage.local.get(['fontSize'], (data) => {
+    const current = Number(data.fontSize) || 100;
+    const next = Math.max(80, current - 5);
+    chrome.storage.local.set({ fontSize: next }, () => {
+      updateFontSizeDisplay(next);
+    });
+  });
+});
+
+$('#btn-font-increase').addEventListener('click', () => {
+  chrome.storage.local.get(['fontSize'], (data) => {
+    const current = Number(data.fontSize) || 100;
+    const next = Math.min(130, current + 5);
+    chrome.storage.local.set({ fontSize: next }, () => {
+      updateFontSizeDisplay(next);
+    });
+  });
+});
+
+function updateFontSizeDisplay(value) {
+  $('#font-size-display').textContent = `${value}%`;
+}
+
+// --- 自动翻译 ---
+$('#select-auto-translate').addEventListener('change', () => {
+  const autoTranslate = $('#select-auto-translate').value === 'true';
+  chrome.storage.local.set({ autoTranslate }, () => {
+    showStatus('#save-status', '连续阅读设置已保存', 'success');
+  });
+});
+
+// --- 翻译颜色 ---
+document.querySelectorAll('.color-swatch').forEach(swatch => {
+  swatch.addEventListener('click', () => {
+    const color = swatch.dataset.color;
+    chrome.storage.local.set({ translationColor: color }, () => {
+      updateActiveColorSwatch(color);
+      showStatus('#save-status', '翻译颜色已保存', 'success');
+    });
+  });
+});
+
+$('#input-translation-color').addEventListener('input', (e) => {
+  const color = e.target.value;
+  chrome.storage.local.set({ translationColor: color }, () => {
+    updateActiveColorSwatch(color);
+  });
+});
+
+function updateActiveColorSwatch(activeColor) {
+  let presetMatched = false;
+  document.querySelectorAll('.color-swatch').forEach(s => {
+    const isMatch = s.dataset.color === activeColor;
+    s.classList.toggle('active', isMatch);
+    if (isMatch) presetMatched = true;
+  });
+  const customLabel = document.querySelector('.color-custom');
+  if (customLabel) {
+    customLabel.classList.toggle('active', !presetMatched);
+    customLabel.style.setProperty('--custom-color', activeColor);
+  }
+}
+
+// --- 生词本 ---
+$('#btn-open-vocab').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('vocab.html') });
+});
+
+function updateVocabCount(count) {
+  const el = $('#vocab-count');
+  if (count > 0) {
+    el.textContent = `已收录 ${count} 词`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// 监听 vocabulary 变化
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.vocabulary) {
+    const vocabulary = changes.vocabulary.newValue || [];
+    updateVocabCount(vocabulary.length);
+  }
+});
 
 // --- 工具函数 ---
 function showStatus(selector, text, type) {
@@ -772,3 +1135,33 @@ function showStatus(selector, text, type) {
     setTimeout(() => { el.textContent = ''; }, 4000);
   }
 }
+
+// --- Clearable Inputs ---
+function updateClearBtn(wrapper) {
+  const input = wrapper.querySelector('.input');
+  if (!input) return;
+  wrapper.classList.toggle('has-value', input.value.length > 0);
+}
+
+function updateAllClearBtns() {
+  document.querySelectorAll('.input-clearable').forEach(updateClearBtn);
+}
+
+document.querySelectorAll('.input-clearable').forEach(wrapper => {
+  const input = wrapper.querySelector('.input');
+  const clearBtn = wrapper.querySelector('.input-clear-btn');
+  if (!input || !clearBtn) return;
+
+  input.addEventListener('input', () => updateClearBtn(wrapper));
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    wrapper.classList.remove('has-value');
+    input.focus();
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
+  });
+});
+
+// Initial state
+updateAllClearBtns();
+
+initCustomDropdowns();
