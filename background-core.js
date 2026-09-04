@@ -96,10 +96,14 @@
         item.translation.trim() &&
         !/[\r\n]/.test(item.word)
       )
-      .map(item => ({
-        word: item.word.trim().replace(/\s+/g, ' '),
-        translation: item.translation.trim().replace(/\s+/g, ' ')
-      }))
+      .map(item => {
+        const difficulty = normalizeDifficultyLevel(item.difficulty);
+        return {
+          word: item.word.trim().replace(/\s+/g, ' '),
+          translation: item.translation.trim().replace(/\s+/g, ' '),
+          ...(difficulty ? { difficulty } : {})
+        };
+      })
       .filter(item =>
         item.word.length <= 80 &&
         item.translation.length <= 40 &&
@@ -111,6 +115,82 @@
         seenWords.add(key);
         return true;
       });
+  }
+
+  function normalizeDifficultyLevel(value) {
+    const match = String(value || '').toUpperCase().match(/\bL([1-6])\b/);
+    return match ? `L${match[1]}` : '';
+  }
+
+  function countEnglishWords(text) {
+    return (String(text || '').match(/\b[A-Za-z][A-Za-z'-]*\b/g) || []).length;
+  }
+
+  const KNOWN_TERMS_L2 = new Set([
+    'about', 'account', 'blog', 'contact', 'docs', 'download', 'help', 'home',
+    'learn', 'log in', 'login', 'menu', 'news', 'pricing', 'privacy', 'product',
+    'products', 'search', 'settings', 'sign in', 'support', 'terms', 'user',
+    'users', 'work'
+  ]);
+
+  const KNOWN_TERMS_L3 = new Set([
+    'analysis', 'article', 'business', 'careers', 'commitment', 'commitments',
+    'company', 'community', 'continue', 'data', 'development', 'education',
+    'enterprise', 'evidence', 'explore', 'features', 'generation', 'government',
+    'information', 'intelligence', 'language', 'model', 'models', 'overview',
+    'performance', 'policy', 'policies', 'research', 'resources', 'safety',
+    'science', 'security', 'service', 'services', 'system', 'systems', 'technology'
+  ]);
+
+  function normalizeEnglishTerm(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[’]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function isKnownAtOrBelowUserLevel(term, userRank) {
+    const normalized = normalizeEnglishTerm(term);
+    if (userRank >= 2 && KNOWN_TERMS_L2.has(normalized)) return true;
+    return userRank >= 3 && KNOWN_TERMS_L3.has(normalized);
+  }
+
+  function sourceContainsTerm(source, term) {
+    const normalizedSource = normalizeEnglishTerm(source);
+    const normalizedTerm = normalizeEnglishTerm(term);
+    if (!normalizedTerm) return false;
+
+    const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, 'i').test(normalizedSource);
+  }
+
+  function isShortStandaloneText(text, contextType) {
+    const shortContexts = new Set([
+      'nav', 'footer', 'toc', 'button', 'link', 'heading', 'caption',
+      'list_item', 'table_cell', 'block', 'quote'
+    ]);
+    const normalizedContext = String(contextType || '').toLowerCase();
+    const source = String(text || '').trim();
+    const wordCount = countEnglishWords(source);
+    if (!source || source.length > 120 || wordCount === 0) return false;
+    if (wordCount <= 2) return true;
+    return shortContexts.has(normalizedContext) && wordCount <= 8;
+  }
+
+  function filterAnnotationsByLevel(items, userLevel, text, contextType) {
+    const normalizedUserLevel = normalizeDifficultyLevel(userLevel) || 'L3';
+    const userRank = Number(normalizedUserLevel.slice(1));
+    const requireDifficulty = isShortStandaloneText(text, contextType);
+
+    return (Array.isArray(items) ? items : []).filter(item => {
+      const normalizedWord = normalizeEnglishTerm(item && item.word);
+      if (!sourceContainsTerm(text, normalizedWord)) return false;
+      if (isKnownAtOrBelowUserLevel(normalizedWord, userRank)) return false;
+      const difficulty = normalizeDifficultyLevel(item && item.difficulty);
+      if (!difficulty) return !requireDifficulty;
+      return Number(difficulty.slice(1)) > userRank;
+    });
   }
 
   function normalizeAnnotationComparableText(value) {
@@ -143,6 +223,11 @@
     parseJSONValue,
     repairLooseJSON,
     normalizeAnnotations,
+    normalizeDifficultyLevel,
+    isShortStandaloneText,
+    isKnownAtOrBelowUserLevel,
+    sourceContainsTerm,
+    filterAnnotationsByLevel,
     isSameAnnotationGloss,
     buildAnnotationOnlyFallback
   };

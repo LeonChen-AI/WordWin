@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.3-blue" />
   <img alt="Manifest" src="https://img.shields.io/badge/Manifest-V3-green" />
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-gray" />
+  <img alt="License" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-orange" />
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-supported-brightgreen" />
   <img alt="Edge" src="https://img.shields.io/badge/Edge-supported-brightgreen" />
 </p>
@@ -109,7 +109,6 @@ Popup 中可以直接调整：
 - 标注字号
 - 标注颜色
 - 阅读等级
-- 扫描模式
 - 段落翻译
 - 持续自动翻译
 
@@ -123,16 +122,11 @@ Popup 中可以直接调整：
 
 ### 翻译结果缓存
 
-在相同阅读等级、扫描模式和段落翻译设置下，重复遇到相同文本时可以复用本轮缓存结果，减少重复模型请求和等待时间。
+在相同阅读等级和段落翻译设置下，重复遇到相同文本时可以复用本轮缓存结果，减少重复模型请求和等待时间。
 
-## 两种扫描范围
+## 全面扫描
 
-- **正文翻译模式**：优先处理文章主体，适合新闻、博客、论文和技术文档
-- **全面翻译模式**：同时处理标题、导航、按钮、目录、正文、表格和页脚等可见英文内容
-
-全面翻译（左）对比 正文翻译（右）
-![alt text](image-9.png)
-全面翻译覆盖范围更广，也会产生更多接口请求。
+插件默认处理标题、导航、按钮、目录、正文、表格和页脚等可见英文内容。为了保证行为一致，`0.9.3` 不再向用户提供容易产生歧义的扫描范围选项。
 
 ## 持续自动翻译
 
@@ -186,7 +180,7 @@ Popup 中可以直接调整：
 
 AdaptiveTranslation 采用 BYOK（Bring Your Own Key）方式运行，需要使用自己的模型 API Key。
 
-v0.9.0 的设置页面提供以下服务商入口：
+v0.9.3 的设置页面提供以下服务商入口：
 
 - OpenAI
 - Anthropic Claude
@@ -352,7 +346,7 @@ AdaptiveTranslation 不自带中转服务器。
 
 ## 开发状态
 
-当前版本：**v0.9.0**
+当前版本：**v0.9.3**
 
 项目仍在持续迭代。不同网页的结构、动态加载方式和样式规则不同，标注与段落翻译效果可能存在差异。
 
@@ -361,11 +355,15 @@ AdaptiveTranslation 不自带中转服务器。
 - 网页地址
 - 浏览器及版本
 - 使用的服务商和模型
-- 阅读等级与扫描模式
+- 阅读等级
 - 问题截图或录屏
 
 提交前请隐藏 API Key、用户信息和其他敏感内容。
 
-## License
+## 授权方式
 
-[MIT](LICENSE)
+个人学习、研究和其他非商业用途可依据 [PolyForm Noncommercial 1.0.0](LICENSE) 免费使用。
+
+公司、组织或个人用于营利活动、内部商业业务、收费产品或服务时，需要事先取得单独的付费商业授权。具体范围见 [商业授权说明](COMMERCIAL_LICENSE.md)。
+
+本项目属于源码可用软件，不属于 OSI 定义的开源软件。

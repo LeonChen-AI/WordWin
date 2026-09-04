@@ -32,6 +32,7 @@ function hasUsableApiConfig(data = {}) {
 // ===== 初始化 =====
 
 chrome.storage.local.get([...API_CONFIG_KEYS, 'level', 'paragraphTranslationMode', 'scanMode', 'fontSize', 'autoTranslate', 'translationColor', 'vocabulary'], (data) => {
+  if (data.scanMode !== 'full') chrome.storage.local.set({ scanMode: 'full' });
   hasApiKey = hasUsableApiConfig(data);
   syncPopupView(data);
 });
@@ -50,10 +51,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.paragraphTranslationMode) {
     const toggle = $('#toggle-paragraph');
     if (toggle) toggle.checked = changes.paragraphTranslationMode.newValue === 'on';
-  }
-  if (changes.scanMode) {
-    const sel = $('#select-scan-mode');
-    if (sel) sel.value = changes.scanMode.newValue || 'full';
   }
   if (changes.fontSize) updateFontDisplay(changes.fontSize.newValue || 100);
   if (changes.autoTranslate) {
@@ -87,8 +84,6 @@ function syncPopupView(data) {
     updateLevelBadge(data.level || 'L3');
     const toggle = $('#toggle-paragraph');
     if (toggle) toggle.checked = (data.paragraphTranslationMode || 'on') === 'on';
-    const sel = $('#select-scan-mode');
-    if (sel) sel.value = data.scanMode || 'full';
     updateFontDisplay(data.fontSize || 100);
     const autoToggle = $('#toggle-auto-translate');
     if (autoToggle) autoToggle.checked = Boolean(data.autoTranslate);
@@ -223,15 +218,6 @@ $('#toggle-paragraph').addEventListener('change', (e) => {
   const mode = e.target.checked ? 'on' : 'off';
   chrome.storage.local.set({ paragraphTranslationMode: mode }, () => {
     showToast(mode === 'on' ? '已开启段落翻译' : '已关闭段落翻译');
-  });
-});
-
-// ===== 扫描模式 =====
-
-$('#select-scan-mode').addEventListener('change', (e) => {
-  const mode = e.target.value;
-  chrome.storage.local.set({ scanMode: mode }, () => {
-    showToast(mode === 'full' ? '全面翻译模式' : '正文翻译模式');
   });
 });
 

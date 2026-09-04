@@ -1,4 +1,4 @@
-// AdaptiveTranslation Options 0.9.1 设置页逻辑
+// AdaptiveTranslation Options 0.9.3 设置页逻辑
 
 const $ = (sel) => document.querySelector(sel);
 const LEVELS = ['L1', 'L2', 'L3', 'L4', 'L5'];
@@ -48,7 +48,6 @@ const SERVICE_PRESETS = {
   }
 };
 const THINKING_MODES = ['off', 'on'];
-const SCAN_MODES = ['full', 'article'];
 const PARAGRAPH_TRANSLATION_MODES = ['on', 'off'];
 const USAGE_WINDOWS = [
   { key: '1h', label: '最近 1 小时', ms: 60 * 60 * 1000 },
@@ -120,7 +119,7 @@ function normalizeThinkingMode(value) {
 }
 
 function normalizeScanMode(value) {
-  return SCAN_MODES.includes(value) ? value : 'full';
+  return 'full';
 }
 
 function normalizeParagraphTranslationMode(value) {
@@ -389,14 +388,14 @@ const LEGACY_DEFAULT_PROMPT = `你是一个英语学习助手。用户当前的�
 {{text}}`;
 
 // 默认 Prompt（必须与 background.js 中的 DEFAULT_PROMPT 保持一致）
-const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的词汇水平，从英文段落中找出用户可能不认识的词或短语，给出简短中文释义。
+const DEFAULT_PROMPT_V092 = `你是一个英语阅读标注助手。根据用户的词汇水平，从英文段落中找出用户可能不认识的词或短语，给出简短中文释义。
 
 用户等级：{{level_code}}
 词汇水平：{{level_reference}}
 标注策略：{{level_strategy}}
 文本类型：{{context_hint}}
 
-【数量约束】没有符合条件的词时返回 []。
+【数量约束】没有符合条件的词时必须返回 []。不要为了翻译而翻译。
 
 规则：
 1. 释义简短，2-5 个字，贴合当前上下文语义
@@ -404,12 +403,52 @@ const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的�
 3. 优先标注对理解段落最关键的词，次要词宁可不标
 4. 跳过专有名词（人名、地名、机构名、产品名、纯缩写），但其中有普通含义且用户大概率不认识的词除外（如 "Apex" 作为普通词意为"顶点"）
 5. 专有名词多不代表整段跳过——跳过专有名词后，继续检查剩余普通词中是否有用户不认识的
+6. 导航、菜单、按钮、标签页、页脚等短文本仍然必须服从用户等级：常见 UI 词或常见学术/网站栏目词不要标注，例如 Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact。只有明显超出当前等级、或在语境中有特殊含义的词才标注。
 
 返回 JSON 数组：
 [{"word": "单词或短语", "translation": "中文释义"}]
 
 段落：
 {{text}}`;
+
+const DEFAULT_PROMPT_V091 = DEFAULT_PROMPT_V092
+  .replace('【数量约束】没有符合条件的词时必须返回 []。不要为了翻译而翻译。', '【数量约束】没有符合条件的词时返回 []。')
+  .replace('\n6. 导航、菜单、按钮、标签页、页脚等短文本仍然必须服从用户等级：常见 UI 词或常见学术/网站栏目词不要标注，例如 Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact。只有明显超出当前等级、或在语境中有特殊含义的词才标注。', '');
+
+const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的词汇水平，只标注真正超出用户当前等级的英文词或短语。
+
+用户等级：{{level_code}}
+词汇水平：{{level_reference}}
+标注策略：{{level_strategy}}
+文本类型：{{context_hint}}
+
+【硬性约束】最多返回 {{max_per_paragraph}} 个标注。没有符合条件的词时必须返回 []，不要为了翻译而翻译。
+
+规则：
+1. 先判断候选词的最低理解等级：L1 基础、L2 高中、L3 四级、L4 六级/考研、L5 英专/留学、L6 极罕见专业或古旧词
+2. 只有候选词的 difficulty 严格高于用户等级时才能返回；等于或低于用户等级的一律不返回
+3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Generation、Intelligence、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目或常用内容词不应标注给 L3 及以上用户
+4. 短文本只有一两个词时也必须逐词判断难度，绝不能因为文本短就把全部词都翻译
+5. 释义保持 2-5 个字，并贴合当前语境；可以标注必要短语
+6. 跳过人名、地名、机构名、产品名和纯缩写；宁可漏掉边缘词，也不要打扰用户
+
+只返回 JSON 数组：
+[{"word":"英文词或短语","translation":"中文释义","difficulty":"L4"}]
+
+段落：
+{{text}}`;
+
+const DEFAULT_PROMPT_V093_BASE = DEFAULT_PROMPT.replace(
+  '3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Generation、Intelligence、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目或常用内容词不应标注给 L3 及以上用户',
+  '3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目词不应标注给 L3 及以上用户'
+);
+
+function resolvePromptTemplate(customPrompt) {
+  if (!customPrompt || customPrompt === LEGACY_DEFAULT_PROMPT || customPrompt === DEFAULT_PROMPT_V091 || customPrompt === DEFAULT_PROMPT_V092 || customPrompt === DEFAULT_PROMPT_V093_BASE) {
+    return DEFAULT_PROMPT;
+  }
+  return customPrompt;
+}
 
 // --- 侧栏导航切换 ---
 document.querySelectorAll('.nav-item').forEach(item => {
@@ -447,9 +486,7 @@ chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt',
   const fontSize = Number(data.fontSize) || 100;
   const autoTranslate = data.autoTranslate === true;
   const vocabulary = Array.isArray(data.vocabulary) ? data.vocabulary : [];
-  const promptTemplate = (!data.customPrompt || data.customPrompt === LEGACY_DEFAULT_PROMPT)
-    ? DEFAULT_PROMPT
-    : data.customPrompt;
+  const promptTemplate = resolvePromptTemplate(data.customPrompt);
   const providerConfigs = data.providerConfigs || migrated.configs || {};
 
   // Store providerConfigs globally for change handler access
@@ -460,7 +497,6 @@ chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt',
   $('#select-provider').dataset.currentProvider = serviceProvider;
   $('#select-thinking').value = thinkingMode;
   $('#select-paragraph-translation-mode').value = paragraphTranslationMode;
-  $('#select-scan-mode').value = scanMode;
   $('#select-auto-translate').value = String(autoTranslate);
 
   // Restore per-provider config (only from last successful test connection)
@@ -534,12 +570,6 @@ $('#select-level').addEventListener('change', () => {
   });
 });
 
-$('#select-scan-mode').addEventListener('change', () => {
-  chrome.storage.local.set({ scanMode: normalizeScanMode($('#select-scan-mode').value) }, () => {
-    showStatus('#save-status', '翻译范围已保存，当前页面会自动重翻', 'success');
-  });
-});
-
 $('#select-paragraph-translation-mode').addEventListener('change', () => {
   chrome.storage.local.set({ paragraphTranslationMode: normalizeParagraphTranslationMode($('#select-paragraph-translation-mode').value) }, () => {
     showStatus('#save-status', '对照翻译已保存，当前页面会自动重翻', 'success');
@@ -606,7 +636,7 @@ $('#btn-test').addEventListener('click', async () => {
         ...getApiConfigFromForm(),
         providerConfigs: configs,
         level: $('#select-level').value,
-        scanMode: normalizeScanMode($('#select-scan-mode').value),
+        scanMode: 'full',
         paragraphTranslationMode: normalizeParagraphTranslationMode($('#select-paragraph-translation-mode').value),
         autoTranslate: $('#select-auto-translate').value === 'true'
       };
