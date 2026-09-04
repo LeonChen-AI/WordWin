@@ -1,4 +1,4 @@
-// AdaptiveTranslation Content Script 0.9.1
+// AdaptiveTranslation Content Script 0.9.3
 // 负责：按段独立处理、视口优先调度、对照翻译，并在关闭时整轮清空标注
 
 (function () {
@@ -73,6 +73,11 @@
   const MAX_NEW_ITEMS_PER_COLLECT = 100;
   const BACKGROUND_COLLECT_DELAY_MS = 1800;
   const TRANSLATABLE_CONTEXT_TYPES = new Set(['paragraph', 'quote', 'list_item', 'block', 'heading', 'table_cell', 'caption']);
+  const SAFE_TRANSLATION_HOST_TAGS = new Set([
+    'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+    'BLOCKQUOTE', 'FIGCAPTION', 'TD', 'TH', 'DD', 'DT',
+    'DIV', 'SECTION', 'ARTICLE'
+  ]);
   const contentCore = window.AdaptiveTranslationCore;
   const runStateFactory = window.AdaptiveTranslationRunState;
 
@@ -148,7 +153,7 @@
   }
 
   function normalizeScanMode(value) {
-    return value === 'article' ? 'article' : 'full';
+    return 'full';
   }
 
   function normalizeParagraphTranslationMode(value) {
@@ -247,11 +252,12 @@
     return contentCore.splitIntoSentences(text);
   }
 
-  function shouldRequestParagraphTranslation(contextType, text, sentences) {
+  function shouldRequestParagraphTranslation(el, contextType, text, sentences) {
     if (paragraphTranslationMode !== 'on') return false;
     if (!TRANSLATABLE_CONTEXT_TYPES.has(contextType)) return false;
     if (!Array.isArray(sentences) || sentences.length === 0) return false;
-    return String(text || '').trim().length >= 40;
+    if (String(text || '').trim().length < 40) return false;
+    return canAppendTranslationInside(el);
   }
 
   function collectTextLayout(el) {
@@ -268,36 +274,37 @@
     return { text, nodes };
   }
 
-  function findTextPosition(nodes, index) {
-    for (const item of nodes) {
-      if (index >= item.start && index <= item.end) {
-        return {
-          node: item.node,
-          offset: index - item.start
-        };
-      }
-    }
-    return null;
-  }
-
   function wrapTextRange(el, start, end, sentenceId) {
     if (end <= start) return false;
 
     const layout = collectTextLayout(el);
-    const startPos = findTextPosition(layout.nodes, start);
-    const endPos = findTextPosition(layout.nodes, end);
-    if (!startPos || !endPos) return false;
+    const segments = layout.nodes
+      .filter(item => item.end > start && item.start < end)
+      .map(item => ({
+        node: item.node,
+        startOffset: Math.max(0, start - item.start),
+        endOffset: Math.min(item.node.textContent.length, end - item.start)
+      }))
+      .filter(item => item.endOffset > item.startOffset)
+      .reverse();
 
-    const range = document.createRange();
-    range.setStart(startPos.node, startPos.offset);
-    range.setEnd(endPos.node, endPos.offset);
+    let wrappedCount = 0;
+    for (const segment of segments) {
+      if (!segment.node.parentNode) continue;
 
-    const span = document.createElement('span');
-    span.className = 'adaptive-translation-source-sentence';
-    span.dataset.adaptiveTranslationSentenceId = String(sentenceId);
-    span.appendChild(range.extractContents());
-    range.insertNode(span);
-    return true;
+      const range = document.createRange();
+      range.setStart(segment.node, segment.startOffset);
+      range.setEnd(segment.node, segment.endOffset);
+
+      const span = document.createElement('span');
+      span.className = 'adaptive-translation-source-sentence';
+      span.dataset.adaptiveTranslationSentenceId = String(sentenceId);
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      wrappedCount += 1;
+    }
+
+    return wrappedCount > 0;
   }
 
   function normalizeTextWithMap(text) {
@@ -376,22 +383,42 @@
   }
 
   function attachSentenceHover(sourceEl, translationBlock) {
-    const isInsidePair = (node) => Boolean(node && (
-      sourceEl.contains(node) || translationBlock.contains(node)
-    ));
-    const clear = (event) => {
-      if (event && isInsidePair(event.relatedTarget)) return;
-      clearActiveSentence(sourceEl, translationBlock);
-    };
+    const clear = () => clearActiveSentence(sourceEl, translationBlock);
     sourceEl.querySelectorAll('.adaptive-translation-source-sentence').forEach(span => {
-      span.addEventListener('mouseenter', () => setActiveSentence(sourceEl, translationBlock, span.dataset.adaptiveTranslationSentenceId));
-      span.addEventListener('mouseleave', clear);
+      span.addEventListener('pointerenter', () => setActiveSentence(sourceEl, translationBlock, span.dataset.adaptiveTranslationSentenceId));
+      span.addEventListener('pointerleave', clear);
     });
     translationBlock.querySelectorAll('.adaptive-translation-target-sentence').forEach(span => {
-      span.addEventListener('mouseenter', () => setActiveSentence(sourceEl, translationBlock, span.dataset.adaptiveTranslationSentenceId));
-      span.addEventListener('mouseleave', clear);
+      span.addEventListener('pointerenter', () => setActiveSentence(sourceEl, translationBlock, span.dataset.adaptiveTranslationSentenceId));
+      span.addEventListener('pointerleave', clear);
     });
   }
+
+  function clearAllActiveSentences() {
+    document.querySelectorAll('.adaptive-translation-sentence-active').forEach(el => {
+      el.classList.remove('adaptive-translation-sentence-active');
+    });
+  }
+
+  function closestSentenceElement(node) {
+    const element = node instanceof Element ? node : node && node.parentElement;
+    return element && element.closest
+      ? element.closest('.adaptive-translation-source-sentence, .adaptive-translation-target-sentence')
+      : null;
+  }
+
+  // Some sites re-parent inline nodes during pointer movement. A bubbling fallback
+  // prevents the previous sentence from staying active when pointerleave is skipped.
+  document.addEventListener('pointerout', event => {
+    if (!closestSentenceElement(event.target)) return;
+    if (!closestSentenceElement(event.relatedTarget)) clearAllActiveSentences();
+  }, true);
+  document.addEventListener('pointercancel', clearAllActiveSentences, true);
+
+  window.addEventListener('blur', clearAllActiveSentences);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearAllActiveSentences();
+  });
 
   // --- Color contrast utilities ---
 
@@ -513,72 +540,19 @@
     return fgHex; // fallback to original
   }
 
-  function getInsertionContext(el) {
-    // Check if element is inside a table cell
-    let parent = el.parentElement;
-    while (parent && parent.tagName !== 'TABLE') {
-      if (parent.tagName === 'TD' || parent.tagName === 'TH') {
-        return 'table-cell';
-      }
-      parent = parent.parentElement;
-    }
-
-    // Check if element's direct parent is flex or grid
-    if (el.parentElement) {
-      const parentDisplay = window.getComputedStyle(el.parentElement).display;
-      if (parentDisplay === 'flex' || parentDisplay === 'inline-flex' ||
-          parentDisplay === 'grid' || parentDisplay === 'inline-grid') {
-        return 'flex-grid';
-      }
-    }
-
-    return 'normal';
-  }
-
-  function syncTranslationBlockLayout(sourceEl, block) {
-    if (block.classList.contains('in-source-element')) {
-      block.style.boxSizing = 'border-box';
-      block.style.width = '100%';
-      block.style.maxWidth = '100%';
-      block.style.marginLeft = '';
-      block.style.marginRight = '';
-      return;
-    }
-
-    const rect = sourceEl.getBoundingClientRect();
-    if (rect.width <= 0) return;
-
-    const sourceStyle = window.getComputedStyle(sourceEl);
-    block.style.boxSizing = 'border-box';
-    block.style.width = `${Math.round(rect.width)}px`;
-    block.style.maxWidth = '100%';
-
-    if (sourceEl.tagName !== 'LI') {
-      block.style.marginLeft = sourceStyle.marginLeft;
-      block.style.marginRight = sourceStyle.marginRight;
-    }
-  }
-
   function canAppendTranslationInside(el) {
     if (!el || !el.tagName || el.isContentEditable) return false;
 
-    const forbiddenTags = new Set([
-      'A', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'LABEL',
-      'SCRIPT', 'STYLE', 'SVG', 'IMG', 'VIDEO', 'AUDIO', 'CANVAS',
-      'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'UL', 'OL'
-    ]);
-    if (forbiddenTags.has(el.tagName)) return false;
+    if (!SAFE_TRANSLATION_HOST_TAGS.has(el.tagName)) return false;
+    if (el.closest('a, button, label, summary, [role="button"], [role="tab"], [role="menuitem"]')) return false;
 
     const display = window.getComputedStyle(el).display;
-    if (!display || display.startsWith('inline') || display === 'contents') {
-      return false;
-    }
-
-    return true;
+    return display === 'block' || display === 'flow-root' || display === 'list-item' || display === 'table-cell';
   }
 
   function renderParagraphTranslation(el, sentences, sentenceTranslations) {
     if (!sentenceTranslations || sentenceTranslations.length === 0) return 0;
+    if (!canAppendTranslationInside(el)) return 0;
 
     isRendering = true;
     try {
@@ -594,36 +568,9 @@
       const block = document.createElement('span');
       block.className = 'adaptive-translation-paragraph-translation';
       block.dataset.adaptiveTranslationBlock = 'true';
-
-      // Insert based on layout context
-      const context = getInsertionContext(el);
-      let insertTarget;
-      let insertInsideSource = canAppendTranslationInside(el);
-
-      if (insertInsideSource) {
-        insertTarget = el;
-        block.classList.add('in-source-element');
-      } else if (context === 'table-cell') {
-        // Find the td/th ancestor and append inside it
-        let cell = el.parentElement;
-        while (cell && cell.tagName !== 'TD' && cell.tagName !== 'TH') {
-          cell = cell.parentElement;
-        }
-        if (!cell) return 0;
-        insertTarget = cell;
-        block.classList.add('in-table-cell');
-      } else if (context === 'flex-grid') {
-        // Append inside source element to avoid creating a new flex/grid item
-        insertTarget = el;
-        block.classList.add('in-flex-container');
-      } else {
-        // Normal flow: insert as sibling after source element
-        if (!el.parentNode) return 0;
-        insertTarget = el;
-        block.classList.add('in-normal-flow');
-      }
-
-      syncTranslationBlockLayout(insertTarget, block);
+      block.classList.add('in-source-element');
+      block.setAttribute('lang', 'zh-CN');
+      block.setAttribute('role', 'note');
 
       for (const sentence of matched) {
         const span = document.createElement('span');
@@ -633,11 +580,7 @@
         block.appendChild(span);
       }
 
-      if (!insertInsideSource && context === 'normal' && el.tagName !== 'LI') {
-        el.parentNode.insertBefore(block, el.nextSibling);
-      } else {
-        insertTarget.appendChild(block);
-      }
+      el.appendChild(block);
 
       attachSentenceHover(el, block);
       return matched.length;
@@ -1615,7 +1558,7 @@
     paragraphStates.set(item.el, 'processing');
     const shouldTranslateParagraph =
       !item.forceAnnotationOnly &&
-      shouldRequestParagraphTranslation(item.contextType, item.text, item.sentences);
+      shouldRequestParagraphTranslation(item.el, item.contextType, item.text, item.sentences);
 
     try {
       const result = await chrome.runtime.sendMessage({
@@ -1801,10 +1744,6 @@
     }
     if (changes.level) {
       level = changes.level.newValue || 'L3';
-      shouldRestart = true;
-    }
-    if (changes.scanMode) {
-      scanMode = normalizeScanMode(changes.scanMode.newValue);
       shouldRestart = true;
     }
     if (changes.paragraphTranslationMode) {

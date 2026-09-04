@@ -20,7 +20,7 @@
         <div class="sidebar-title">自适应翻译</div>
       </div>
       <div class="sidebar-meta">
-        <div class="sidebar-credit">v0.9.1 · 本机配置</div>
+        <div class="sidebar-credit">v0.9.3 · 本机配置</div>
       </div>
     </div>
 
@@ -61,7 +61,7 @@
 
     <div class="sidebar-spacer"></div>
 
-    <div class="sidebar-footer">v0.9.1 · 浏览器扩展</div>
+    <div class="sidebar-footer">v0.9.3 · 浏览器扩展</div>
   </nav>
 
   <!-- 内容区 -->
@@ -251,10 +251,10 @@
     <div id="tab-prefs" class="tab-content">
       <div class="content-header">
         <h1>翻译偏好</h1>
-        <p>调整翻译范围、显示样式与连续阅读行为</p>
+        <p>调整对照翻译、显示样式与连续阅读行为</p>
       </div>
 
-      <!-- 翻译范围 -->
+      <!-- 翻译行为 -->
       <section class="section-card">
         <div class="section-header">
           <div class="section-icon">
@@ -263,7 +263,7 @@
               <path d="M3.5 12H20.5M12 3.5C14 5.7 15 8.5 15 12C15 15.5 14 18.3 12 20.5M12 3.5C10 5.7 9 8.5 9 12C9 15.5 10 18.3 12 20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
             </svg>
           </div>
-          <div class="section-title">翻译范围</div>
+          <div class="section-title">翻译行为</div>
         </div>
         <div class="section-body">
           <div class="form-row">
@@ -272,15 +272,6 @@
               <select id="select-paragraph-translation-mode">
                 <option value="on">开启（段落下方显示中文对照）</option>
                 <option value="off">关闭（只标注生词）</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <label class="form-label">翻译范围</label>
-            <div class="form-control">
-              <select id="select-scan-mode">
-                <option value="full">全面翻译模式</option>
-                <option value="article">正文翻译模式</option>
               </select>
             </div>
           </div>
@@ -313,13 +304,13 @@
               <div class="font-size-control">
                 <button id="btn-font-decrease" class="btn btn-icon" type="button" aria-label="缩小字号">
                   <svg class="ui-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 19H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6 12H18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
                   </svg>
                 </button>
                 <span id="font-size-display" class="font-size-display">100%</span>
                 <button id="btn-font-increase" class="btn btn-icon" type="button" aria-label="放大字号">
                   <svg class="ui-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 19L10.5 5H13.5L19 19M7.2 14H16.8M18 14V22M14 18H22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 6V18M6 12H18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
                   </svg>
                 </button>
               </div>

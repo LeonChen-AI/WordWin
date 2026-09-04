@@ -44,6 +44,11 @@
   transition: color 0.18s ease, opacity 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+.adaptive-translation-source-sentence.adaptive-translation-sentence-active {
+  background-color: transparent;
+  box-shadow: none;
+}
+
 .adaptive-translation-paragraph-translation {
   display: block;
   width: 100%;
@@ -97,6 +102,8 @@
   color: #1f2937;
   opacity: 1;
   filter: none;
+  background-color: rgba(250, 204, 21, 0.58);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.30);
 }
 
 /* 生词弹窗 */
@@ -106,7 +113,7 @@
   border-radius: 14px;
   padding: 14px 18px;
   box-shadow: 0 8px 24px rgba(99,102,241,0.12), 0 2px 6px rgba(0,0,0,0.06);
-  z-index: 100000;
+  z-index: 2147483647;
   min-width: 200px;
   max-width: 340px;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -337,6 +344,23 @@
   --at-shadow: 0 18px 50px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
+.adaptive-translation-annotation {
+  font-weight: 650 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  position: relative !important;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.42) !important;
+  border-radius: 4px !important;
+  text-decoration: none !important;
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+.adaptive-translation-annotation:hover {
+  background: rgba(99, 102, 241, 0.08) !important;
+  border-bottom-color: rgba(99, 102, 241, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.07) !important;
+}
+
 .adaptive-translation-annotation-saved {
   border-bottom-style: solid !important;
   border-bottom-color: var(--at-success) !important;
@@ -345,6 +369,16 @@
 .adaptive-translation-annotation-saved:hover {
   background: var(--at-success-soft) !important;
   box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.08) !important;
+}
+
+.adaptive-translation-translation {
+  color: var(--at-translation-color) !important;
+  font-size: calc(0.82em * var(--at-font-scale)) !important;
+  font-weight: 500 !important;
+  margin-left: 0.24em !important;
+  opacity: 0.72 !important;
+  user-select: none !important;
+  white-space: nowrap !important;
 }
 
 .adaptive-translation-source-sentence {
@@ -356,6 +390,20 @@
 .adaptive-translation-source-sentence.adaptive-translation-sentence-active {
   background: var(--at-highlight) !important;
   box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.18) !important;
+}
+
+.adaptive-translation-paragraph-translation {
+  display: block !important;
+  box-sizing: border-box !important;
+  margin: 0.5em 0 1.05em !important;
+  padding: 0.72em 0.92em !important;
+  border: 1px solid rgba(99, 102, 241, 0.16) !important;
+  border-left: 3px solid rgba(99, 102, 241, 0.62) !important;
+  border-radius: 10px !important;
+  background: rgba(99, 102, 241, 0.045) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  font-size: calc(0.9em * var(--at-font-scale)) !important;
+  line-height: 1.78 !important;
 }
 
 .adaptive-translation-paragraph-translation.in-table-cell,
@@ -396,7 +444,7 @@
   box-shadow: var(--at-shadow) !important;
   backdrop-filter: blur(20px) saturate(1.18) !important;
   -webkit-backdrop-filter: blur(20px) saturate(1.18) !important;
-  z-index: 100000 !important;
+  z-index: 2147483647 !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif !important;
   font-size: 13px !important;
   line-height: 1.45 !important;
@@ -555,7 +603,54 @@
   text-align: center !important;
 }
 
+@media (prefers-color-scheme: dark) {
+  .adaptive-translation-word-popup {
+    background: rgba(24, 24, 27, 0.88) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    color: #f9fafb !important;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42) !important;
+  }
+
+  .at-popup-word,
+  .at-popup-tts-btn {
+    color: #f9fafb !important;
+  }
+
+  .at-popup-translation {
+    color: #e5e7eb !important;
+  }
+
+  .at-popup-example,
+  .at-popup-detail-btn,
+  .at-popup-tts-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.14) !important;
+  }
+
+  .at-popup-example {
+    color: rgba(249, 250, 251, 0.78) !important;
+  }
+}
+
 /* v0.9.1 final reading pass: keep overlays quiet on light articles even when the OS is in dark mode. */
+.adaptive-translation-paragraph-translation {
+  margin: 0.48em 0 1.08em !important;
+  padding: 0.66em 0.88em !important;
+  border: 1px solid rgba(37, 99, 235, 0.12) !important;
+  border-left: 2px solid rgba(37, 99, 235, 0.38) !important;
+  background: rgba(248, 250, 252, 0.78) !important;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.025) !important;
+}
+
+.adaptive-translation-target-sentence {
+  opacity: 0.72 !important;
+}
+
+.adaptive-translation-source-sentence.adaptive-translation-sentence-active,
+.adaptive-translation-target-sentence.adaptive-translation-sentence-active {
+  background: rgba(37, 99, 235, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.06) !important;
+}
 
 .adaptive-translation-word-popup {
   background: rgba(255, 255, 255, 0.94) !important;
@@ -585,7 +680,6 @@
 }
 
 .adaptive-translation-source-sentence.adaptive-translation-sentence-active {
-  display: inline !important;
   color: #1f2937 !important;
   background: rgba(250, 204, 21, 0.62) !important;
   border-radius: 4px !important;
@@ -600,7 +694,7 @@
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  margin: 0.35em 0 1.05em !important;
+  margin: 0.35em 0 0 !important;
   padding: 0 !important;
   border: 0 !important;
   border-left: 0 !important;
@@ -650,32 +744,58 @@
   color: #4b5563 !important;
 }
 
-/* Dark mode — placed last to override all unconditional light-mode rules above. */
-@media (prefers-color-scheme: dark) {
-  .adaptive-translation-word-popup {
-    background: rgba(24, 24, 27, 0.88) !important;
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    color: #f9fafb !important;
-    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42) !important;
-  }
+/* v0.9.3: stable in-flow paragraph translations and non-shifting sentence highlights. */
+.adaptive-translation-source-sentence {
+  padding: 0 !important;
+  border-radius: 2px !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
+}
 
-  .at-popup-word,
-  .at-popup-tts-btn {
-    color: #f9fafb !important;
-  }
+.adaptive-translation-source-sentence.adaptive-translation-sentence-active,
+.adaptive-translation-target-sentence.adaptive-translation-sentence-active {
+  color: #1f2937 !important;
+  background: rgba(255, 224, 71, 0.76) !important;
+  box-shadow: 0 0 0 2px rgba(255, 224, 71, 0.34) !important;
+  padding: 0 !important;
+}
 
-  .at-popup-translation {
-    color: #e5e7eb !important;
-  }
+.adaptive-translation-paragraph-translation,
+.adaptive-translation-paragraph-translation.in-source-element {
+  display: block !important;
+  position: static !important;
+  float: none !important;
+  clear: none !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+  margin: 0.35em 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-indent: 0 !important;
+  font-size: clamp(14px, calc(0.92em * var(--at-font-scale)), 18px) !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  line-height: 1.75 !important;
+  color: #8a8f98 !important;
+}
 
-  .at-popup-example,
-  .at-popup-detail-btn,
-  .at-popup-tts-btn {
-    background: rgba(255, 255, 255, 0.08) !important;
-    border-color: rgba(255, 255, 255, 0.14) !important;
-  }
-
-  .at-popup-example {
-    color: rgba(249, 250, 251, 0.78) !important;
-  }
+.adaptive-translation-target-sentence {
+  display: inline !important;
+  padding: 0 !important;
+  border-radius: 2px !important;
+  color: inherit !important;
+  opacity: 1 !important;
+  filter: none !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
 }

@@ -1,4 +1,4 @@
-// AdaptiveTranslation Background Service Worker 0.9.1
+// AdaptiveTranslation Background Service Worker 0.9.3
 // 负责：API 调用、单段标注、对照翻译、校准、设置读取与生词本管理
 
 if (typeof importScripts === 'function') {
@@ -48,18 +48,19 @@ function getCacheSignature(settings) {
   ].join('|');
 }
 
-function getCacheKey(text, level, scanMode, paragraphTranslationMode, settings) {
+function getCacheKey(text, level, contextType, scanMode, paragraphTranslationMode, settings) {
   return [
     getCacheSignature(settings),
     level,
+    normalizeContextType(contextType),
     scanMode,
     paragraphTranslationMode,
     hashCachePart(text)
   ].join('|');
 }
 
-function getCachedTranslation(text, level, scanMode, paragraphTranslationMode, settings) {
-  const key = getCacheKey(text, level, scanMode, paragraphTranslationMode, settings);
+function getCachedTranslation(text, level, contextType, scanMode, paragraphTranslationMode, settings) {
+  const key = getCacheKey(text, level, contextType, scanMode, paragraphTranslationMode, settings);
   const entry = translationCache.get(key);
   if (!entry) return null;
   // Move to end (most recently used)
@@ -68,8 +69,8 @@ function getCachedTranslation(text, level, scanMode, paragraphTranslationMode, s
   return { annotations: entry.annotations, sentenceTranslations: entry.sentenceTranslations };
 }
 
-function setCachedTranslation(text, level, scanMode, paragraphTranslationMode, settings, result) {
-  const key = getCacheKey(text, level, scanMode, paragraphTranslationMode, settings);
+function setCachedTranslation(text, level, contextType, scanMode, paragraphTranslationMode, settings, result) {
+  const key = getCacheKey(text, level, contextType, scanMode, paragraphTranslationMode, settings);
   // Evict oldest if at capacity
   if (translationCache.size >= TRANSLATION_CACHE_MAX) {
     const oldestKey = translationCache.keys().next().value;
@@ -116,7 +117,7 @@ const SERVICE_PRESETS = {
 const LEVEL_PROFILES = {
   L1: {
     reference: '基础词汇，约1500词。',
-    maxPerParagraph: 30,
+    maxPerParagraph: 20,
     strategy: `参考义务教育英语课程标准词汇范围，用户实际有效掌握通常低于大纲标准。
 认识的词：日常生活最基本的动词（go, come, eat, see, want）、名词（water, food, book, school）、形容词（good, bad, big, small）和功能词（the, a, is, in, to, and）。简单数字、颜色、家庭成员。
 不认识的词：超出最基础口语范围的大部分实义词，包括稍长的多音节词（convenient, environment, available, improve）、常见搭配短语（in terms of, as a result, take into account）、有抽象含义的词（significant, approach, potential, consider）。
@@ -124,7 +125,7 @@ const LEVEL_PROFILES = {
   },
   L2: {
     reference: '进阶词汇，约3500词。',
-    maxPerParagraph: 30,
+    maxPerParagraph: 12,
     strategy: `参考普通高中英语课程标准词汇范围，用户实际有效掌握通常低于大纲标准。
 认识的词：日常高频词汇，包括常见动词（make, work, help, think, use）、常见名词（people, problem, information, system）、常见形容词（important, different, possible）和基础短语（such as, because of, in order to）。
 不认识的词：高中词汇表中较难的部分（comprehensive, substantial, demonstrate, evaluate）、学术性词汇（hypothesis, methodology）、正式书面用语（consequently, whereas, furthermore）、较长多音节词（infrastructure, interdisciplinary, acknowledgment）和不常见短语搭配。
@@ -132,7 +133,7 @@ const LEVEL_PROFILES = {
   },
   L3: {
     reference: '大学四级词汇，约4500词。',
-    maxPerParagraph: 30,
+    maxPerParagraph: 6,
     strategy: `参考CET-4考试大纲词汇范围，用户实际有效掌握通常低于大纲标准。
 认识的词：日常英文阅读中的高频词汇，包括常见学术词（research, evidence, analysis）、社会话题词（economy, government, education）和中等难度形容词（important, possible, different）。新闻报道和科普文章的主体词汇基本能读懂。
 不认识的词：四级词汇表中较难的部分（initiative, substantial, comprehensive, accommodate）、学术专用词（autonomous, paradigm, empirical, hypothesis）、正式书面表达（consequently, furthermore, whereas, notwithstanding）、专业领域短语（peer review, statistical significance）和较长多音节词。
@@ -140,7 +141,7 @@ const LEVEL_PROFILES = {
   },
   L4: {
     reference: '六级或考研词汇，约5500词。',
-    maxPerParagraph: 30,
+    maxPerParagraph: 3,
     strategy: `参考CET-6/考研英语大纲词汇范围，用户实际有效掌握通常低于大纲标准。
 认识的词：能阅读大部分英文内容，涵盖新闻报道、科普文章、一般性学术摘要等。常见高级词汇（significant, approach, demonstrate）、多数学术高频词和常见短语搭配都在掌握范围内。
 不认识的词：六级/考研词汇表中较难的部分（proliferation, ubiquitous, exacerbate）、低频专业术语（特定学科领域的专有表达）、罕见书面用语（古典文学或法律文本中的古旧词汇）、强语境依赖的词（某词在特定语境下有非常规含义）。
@@ -148,7 +149,7 @@ const LEVEL_PROFILES = {
   },
   L5: {
     reference: '专业或留学词汇，约10000词以上。',
-    maxPerParagraph: 30,
+    maxPerParagraph: 1,
     strategy: `参考英语专业TEM-4/TEM-8大纲词汇范围，用户实际有效掌握通常低于大纲标准。
 认识的词：覆盖文学、语言学、政治经济、自然科学等广泛专业领域。能直接阅读学术论文、专业评论等高难度文本，包括大量低频词和跨学科术语。
 不认识的词：极罕见的专业术语（冷门学科分支的专有名词）、高度生僻的方言或古旧表达。
@@ -187,14 +188,14 @@ const LEGACY_DEFAULT_PROMPT = `你是一个英语学习助手。用户当前的�
 段落：
 {{text}}`;
 
-const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的词汇水平，从英文段落中找出用户可能不认识的词或短语，给出简短中文释义。
+const DEFAULT_PROMPT_V092 = `你是一个英语阅读标注助手。根据用户的词汇水平，从英文段落中找出用户可能不认识的词或短语，给出简短中文释义。
 
 用户等级：{{level_code}}
 词汇水平：{{level_reference}}
 标注策略：{{level_strategy}}
 文本类型：{{context_hint}}
 
-【数量约束】没有符合条件的词时返回 []。
+【数量约束】没有符合条件的词时必须返回 []。不要为了翻译而翻译。
 
 规则：
 1. 释义简短，2-5 个字，贴合当前上下文语义
@@ -202,12 +203,45 @@ const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的�
 3. 优先标注对理解段落最关键的词，次要词宁可不标
 4. 跳过专有名词（人名、地名、机构名、产品名、纯缩写），但其中有普通含义且用户大概率不认识的词除外（如 "Apex" 作为普通词意为"顶点"）
 5. 专有名词多不代表整段跳过——跳过专有名词后，继续检查剩余普通词中是否有用户不认识的
+6. 导航、菜单、按钮、标签页、页脚等短文本仍然必须服从用户等级：常见 UI 词或常见学术/网站栏目词不要标注，例如 Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact。只有明显超出当前等级、或在语境中有特殊含义的词才标注。
 
 返回 JSON 数组：
 [{"word": "单词或短语", "translation": "中文释义"}]
 
 段落：
 {{text}}`;
+
+const DEFAULT_PROMPT_V091 = DEFAULT_PROMPT_V092
+  .replace('【数量约束】没有符合条件的词时必须返回 []。不要为了翻译而翻译。', '【数量约束】没有符合条件的词时返回 []。')
+  .replace('\n6. 导航、菜单、按钮、标签页、页脚等短文本仍然必须服从用户等级：常见 UI 词或常见学术/网站栏目词不要标注，例如 Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact。只有明显超出当前等级、或在语境中有特殊含义的词才标注。', '');
+
+const DEFAULT_PROMPT = `你是一个英语阅读标注助手。根据用户的词汇水平，只标注真正超出用户当前等级的英文词或短语。
+
+用户等级：{{level_code}}
+词汇水平：{{level_reference}}
+标注策略：{{level_strategy}}
+文本类型：{{context_hint}}
+
+【硬性约束】最多返回 {{max_per_paragraph}} 个标注。没有符合条件的词时必须返回 []，不要为了翻译而翻译。
+
+规则：
+1. 先判断候选词的最低理解等级：L1 基础、L2 高中、L3 四级、L4 六级/考研、L5 英专/留学、L6 极罕见专业或古旧词
+2. 只有候选词的 difficulty 严格高于用户等级时才能返回；等于或低于用户等级的一律不返回
+3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Generation、Intelligence、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目或常用内容词不应标注给 L3 及以上用户
+4. 短文本只有一两个词时也必须逐词判断难度，绝不能因为文本短就把全部词都翻译
+5. 释义保持 2-5 个字，并贴合当前语境；可以标注必要短语
+6. 跳过人名、地名、机构名、产品名和纯缩写；宁可漏掉边缘词，也不要打扰用户
+
+只返回 JSON 数组：
+[{"word":"英文词或短语","translation":"中文释义","difficulty":"L4"}]
+
+段落：
+{{text}}`;
+
+const DEFAULT_PROMPT_V093_BASE = DEFAULT_PROMPT.replace(
+  '3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Generation、Intelligence、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目或常用内容词不应标注给 L3 及以上用户',
+  '3. 导航、菜单、按钮、标签页、标题和页脚通常应返回 []；Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact 等常见栏目词不应标注给 L3 及以上用户'
+);
 
 const SUPPLEMENTAL_RECHECK_PROMPT = `
 
@@ -221,18 +255,12 @@ const SUPPLEMENTAL_RECHECK_PROMPT = `
 const FULL_COVERAGE_PROMPT = `
 
 全面翻译模式补充规则：
-1. 当前文本属于短文本（导航、按钮、目录、标题等），不只按”生词”判断
-2. 只要是英文可见文案，尽量返回 1-4 个有助于中文用户理解的词或短语
-3. 常见 UI 词也可标注，例如 Research、Learn、News、Continue reading
-4. 专有名词中有普通含义的词应标注，例如 Project（项目）、Preview（预览）
-5. 全大写标题按普通英文处理
-`;
-
-const FULL_COVERAGE_RECHECK_PROMPT = `
-
-全面模式补漏：
-1. 重新检查文本，短文本（导航、按钮、标题等）通常至少可返回 1 个可解释的词或短语
-2. 只有完全没有英文含义时才返回 []
+1. 当前文本可能属于短文本（导航、按钮、目录、标题等），但仍然只做“生词标注”，不是普通菜单翻译
+2. 不要因为文本很短或只有一个词就强行返回标注
+3. 常见导航词、按钮词、栏目词对 L3/L4/L5 用户不标注，例如 Research、Policy、Commitments、Learn、News、About、Pricing、Docs、Login、Contact
+4. L1/L2 也不要标注明显无需解释的通用 UI 词；只有确实影响理解、或超出该等级的词才标注
+5. 如果没有真正需要标注的词，必须返回 []
+6. 每个返回项都必须包含 difficulty；无法确定难度时不要返回该项
 `;
 
 function createAdaptiveTranslationError(message, { retryable = false } = {}) {
@@ -254,7 +282,7 @@ function normalizeContextType(contextType) {
 }
 
 function normalizeScanMode(value) {
-  return value === 'article' ? 'article' : 'full';
+  return DEFAULT_SCAN_MODE;
 }
 
 function normalizeParagraphTranslationMode(value) {
@@ -269,7 +297,7 @@ function getContextHint(contextType) {
     case 'toc':
     case 'button':
     case 'link':
-      return '短文本（标题/导航/按钮等），通常标注 1-3 个关键词即可。';
+      return '短文本（标题/导航/按钮等），常见情况下不需要标注；只保留严格高于用户等级的词。';
     case 'list_item':
     case 'caption':
     case 'table_cell':
@@ -280,7 +308,7 @@ function getContextHint(contextType) {
 }
 
 function resolvePromptTemplate(customPrompt) {
-  if (!customPrompt || customPrompt === LEGACY_DEFAULT_PROMPT) {
+  if (!customPrompt || customPrompt === LEGACY_DEFAULT_PROMPT || customPrompt === DEFAULT_PROMPT_V091 || customPrompt === DEFAULT_PROMPT_V092 || customPrompt === DEFAULT_PROMPT_V093_BASE) {
     return DEFAULT_PROMPT;
   }
   return customPrompt;
@@ -582,16 +610,15 @@ chrome.runtime.onInstalled.addListener((details) => {
   } else if (details.reason === 'update') {
     chrome.storage.local.get(['customPrompt', 'baseUrl', 'model', 'concurrency', 'level', 'serviceProvider', 'thinkingMode', 'scanMode', 'paragraphTranslationMode', 'fontSize', 'autoTranslate', 'vocabulary'], (data) => {
       const updates = {};
-      if (!data.customPrompt || data.customPrompt === LEGACY_DEFAULT_PROMPT) {
-        updates.customPrompt = DEFAULT_PROMPT;
-      }
+      const resolvedPrompt = resolvePromptTemplate(data.customPrompt);
+      if (data.customPrompt !== resolvedPrompt) updates.customPrompt = resolvedPrompt;
       if (!data.baseUrl) updates.baseUrl = DEFAULT_BASE_URL;
       if (!data.model) updates.model = DEFAULT_MODEL;
       if (!data.concurrency) updates.concurrency = 3;
       if (!data.level) updates.level = 'L3';
       if (!data.serviceProvider) updates.serviceProvider = inferServiceProvider(data.baseUrl);
       if (!data.thinkingMode) updates.thinkingMode = DEFAULT_THINKING_MODE;
-      if (!data.scanMode) updates.scanMode = DEFAULT_SCAN_MODE;
+      if (data.scanMode !== DEFAULT_SCAN_MODE) updates.scanMode = DEFAULT_SCAN_MODE;
       if (!data.paragraphTranslationMode) updates.paragraphTranslationMode = DEFAULT_PARAGRAPH_TRANSLATION_MODE;
       if (data.fontSize === undefined) updates.fontSize = 100;
       if (data.autoTranslate === undefined) updates.autoTranslate = false;
@@ -614,7 +641,7 @@ async function handleAnnotate(text, contextType, scanMode, paragraphTranslationM
   const normalizedPTM = normalizeParagraphTranslationMode(paragraphTranslationMode);
 
   // 检查缓存
-  const cached = getCachedTranslation(text, level, normalizedScanMode, normalizedPTM, settings);
+  const cached = getCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings);
   if (cached) {
     return { annotations: cached.annotations, sentenceTranslations: cached.sentenceTranslations };
   }
@@ -628,14 +655,14 @@ async function handleAnnotate(text, contextType, scanMode, paragraphTranslationM
     if (shouldTranslateParagraph) {
       try {
         const result = await callRichLLM(text, sentences, level, settings, contextType, scanMode);
-        setCachedTranslation(text, level, normalizedScanMode, normalizedPTM, settings, result);
+        setCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings, result);
         return result;
       } catch (richErr) {
         console.warn('AdaptiveTranslation: 对照翻译失败，降级为生词标注', richErr);
         try {
           const annotations = await callLLM(text, level, settings, contextType, scanMode);
           const fallback = backgroundCore.buildAnnotationOnlyFallback(annotations, richErr);
-          setCachedTranslation(text, level, normalizedScanMode, normalizedPTM, settings, fallback);
+          setCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings, fallback);
           return fallback;
         } catch (fallbackErr) {
           console.warn('AdaptiveTranslation: 生词标注降级也失败', fallbackErr);
@@ -650,7 +677,7 @@ async function handleAnnotate(text, contextType, scanMode, paragraphTranslationM
 
     const annotations = await callLLM(text, level, settings, contextType, scanMode);
     const result = { annotations, sentenceTranslations: [] };
-    setCachedTranslation(text, level, normalizedScanMode, normalizedPTM, settings, result);
+    setCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings, result);
     return result;
   } catch (err) {
     return {
@@ -1024,26 +1051,31 @@ async function callLLM(text, level, settings, contextType, scanMode = DEFAULT_SC
     fullCoverage ? FULL_COVERAGE_PROMPT : ''
   );
 
-  let annotations = await requestAnnotations(prompt, settings);
+  let annotations = backgroundCore.filterAnnotationsByLevel(
+    await requestAnnotations(prompt, settings),
+    normalizedLevel,
+    text,
+    normalizedContextType
+  );
 
-  if (
-    shouldRunSupplementalCheck(text, normalizedLevel, normalizedContextType, annotations) ||
-    (fullCoverage && annotations.length === 0)
-  ) {
+  if (shouldRunSupplementalCheck(text, normalizedLevel, normalizedContextType, annotations)) {
     const supplementalPrompt = buildPrompt(
       promptTemplate,
       text,
       normalizedLevel,
       profile,
       normalizedContextType,
-      fullCoverage
-        ? FULL_COVERAGE_PROMPT + FULL_COVERAGE_RECHECK_PROMPT
-        : SUPPLEMENTAL_RECHECK_PROMPT
+      SUPPLEMENTAL_RECHECK_PROMPT
     );
-    annotations = await requestAnnotations(supplementalPrompt, settings);
+    annotations = backgroundCore.filterAnnotationsByLevel(
+      await requestAnnotations(supplementalPrompt, settings),
+      normalizedLevel,
+      text,
+      normalizedContextType
+    );
   }
 
-  return annotations.slice(0, 30);
+  return annotations.slice(0, profile.maxPerParagraph);
 }
 
 function buildRichPrompt(text, sentences, level, profile, contextType, scanMode) {
@@ -1060,10 +1092,12 @@ function buildRichPrompt(text, sentences, level, profile, contextType, scanMode)
 请完成两个任务：
 
 任务一：生词标注
-1. 找出该水平用户可能不认识的词或短语，给出简短中文释义（2-5 个字）
-2. 可以标注短语，不限于单词
-3. 优先标注对理解段落最关键的词，次要词宁可不标
-4. 跳过专有名词（人名、地名、机构名、产品名、纯缩写），有普通含义的除外
+1. 只找出严格高于该水平的词或短语，给出简短中文释义（2-5 个字）
+2. 为每个候选词填写 difficulty：L1 基础、L2 高中、L3 四级、L4 六级/考研、L5 英专/留学、L6 极罕见专业或古旧词
+3. difficulty 等于或低于用户等级时不得返回；没有符合项时 annotations 必须为 []
+4. 可以标注必要短语，优先保留影响理解的词，次要词宁可不标
+5. 跳过专有名词（人名、地名、机构名、产品名、纯缩写），有普通含义的除外
+6. 导航、按钮、标签和短标题中的常用词通常不标；L3 及以上不要标注 Research、Policy、Commitments、Generation、Intelligence、Learn、News、About、Pricing、Docs、Login、Contact 等常见词
 
 任务二：逐句翻译
 1. 将下面每个编号英文句子翻译成自然中文
@@ -1072,7 +1106,7 @@ function buildRichPrompt(text, sentences, level, profile, contextType, scanMode)
 
 只返回 JSON：
 {
-  "annotations": [{"word": "英文词或短语", "translation": "中文释义"}],
+  "annotations": [{"word": "英文词或短语", "translation": "中文释义", "difficulty": "L4"}],
   "sentences": [{"id": 1, "translation": "第 1 句中文翻译"}]
 }
 
@@ -1103,8 +1137,12 @@ async function callRichLLM(text, sentences, level, settings, contextType, scanMo
     scanMode
   );
   const parsed = await requestJSON(prompt, settings, { maxTokens: 1400 });
-  const annotations = normalizeAnnotations(parsed.annotations || [])
-    .slice(0, 30);
+  const annotations = backgroundCore.filterAnnotationsByLevel(
+    normalizeAnnotations(parsed.annotations || []),
+    normalizedLevel,
+    text,
+    normalizedContextType
+  ).slice(0, profile.maxPerParagraph);
   const sentenceTranslations = normalizeSentenceTranslations(parsed.sentences || [], normalizedSentences);
 
   return { annotations, sentenceTranslations };
