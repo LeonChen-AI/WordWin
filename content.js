@@ -240,7 +240,7 @@
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = node.parentElement;
-        if (!parent || parent.closest(BASE_EXCLUDED_ANCESTOR_SELECTOR.replace('.adaptive-translation-annotation, ', ''))) return NodeFilter.FILTER_REJECT;
+        if (!parent || parent.closest(BASE_EXCLUDED_ANCESTOR_SELECTOR.replace('.adaptive-translation-annotation, ', '').replace('code, ', '').replace('kbd, ', '').replace('samp, ', ''))) return NodeFilter.FILTER_REJECT;
         if (parent.closest('.adaptive-translation-translation, .adaptive-translation-paragraph-translation')) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -265,7 +265,7 @@
     if (paragraphTranslationMode !== 'on') return false;
     if (!TRANSLATABLE_CONTEXT_TYPES.has(contextType)) return false;
     if (!Array.isArray(sentences) || sentences.length === 0) return false;
-    if (String(text || '').trim().length < 40) return false;
+    if (String(text || '').trim().length < (contentCore.detectTextLanguage(text) === 'zh' ? 12 : 40)) return false;
     return canAppendTranslationInside(el);
   }
 
@@ -578,7 +578,7 @@
       block.className = 'adaptive-translation-paragraph-translation';
       block.dataset.adaptiveTranslationBlock = 'true';
       block.classList.add('in-source-element');
-      block.setAttribute('lang', 'zh-CN');
+      block.setAttribute('lang', contentCore.detectTextLanguage(sentences.map(item => item.text).join(' ')) === 'zh' ? 'en' : 'zh-CN');
       block.setAttribute('role', 'note');
       block.style.setProperty('color', getContrastSafeColor('#6b7280', getEffectiveBgColor(el)), 'important');
 
@@ -587,6 +587,7 @@
         span.className = 'adaptive-translation-target-sentence';
         span.dataset.adaptiveTranslationSentenceId = String(sentence.id);
         span.textContent = translationById.get(sentence.id);
+        if (block.childNodes.length) block.appendChild(document.createTextNode(' '));
         block.appendChild(span);
       }
 
@@ -636,6 +637,9 @@
             const span = document.createElement('span');
             span.className = 'adaptive-translation-annotation';
             span.textContent = matched;
+            const reverse = contentCore.detectTextLanguage(word) === 'zh';
+            span.dataset.learningWord = reverse ? translation : matched;
+            span.dataset.learningMeaning = reverse ? matched : translation;
 
             const trans = document.createElement('span');
             trans.className = 'adaptive-translation-translation';
@@ -837,7 +841,7 @@
       e.preventDefault();
       e.stopPropagation();
 
-      const word = annotation.textContent.trim();
+      const word = annotation.dataset.learningWord || annotation.textContent.trim();
       // Find the adjacent translation span
       const translationEl = annotation.nextElementSibling;
       let translation = '';
@@ -846,7 +850,7 @@
       }
 
       if (word) {
-        showWordPopup(annotation, word, translation);
+        showWordPopup(annotation, word, annotation.dataset.learningMeaning || translation);
       }
     });
   }
@@ -1494,8 +1498,9 @@
         text = (el.getAttribute('aria-label') || '').trim();
       }
       const contextType = getContextType(el);
-      const minTextLength = scanMode === 'full' ? 2 : 20;
-      if (text.length < minTextLength || !isEnglishText(text)) {
+      const language = contentCore.detectTextLanguage(text);
+      const minTextLength = language === 'zh' ? 6 : (scanMode === 'full' ? 2 : 20);
+      if (text.length < minTextLength || !language) {
         paragraphStates.set(el, 'ignored');
         continue;
       }
