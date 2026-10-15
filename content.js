@@ -7,6 +7,7 @@
   if (window.__adaptiveTranslation_initialized) return;
   window.__adaptiveTranslation_initialized = true;
 
+  const isPdfReader = location.protocol === 'chrome-extension:' && document.documentElement.dataset.adaptivePdfReader === 'true';
   const SEMANTIC_SELECTORS = 'p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, figcaption, dd, dt, label, legend, details, time, strong, b, em, i';
   const CONTAINER_TEXT_SELECTORS = 'article, section, div, span, a, button';
   const ALL_SELECTORS = SEMANTIC_SELECTORS + ', ' + CONTAINER_TEXT_SELECTORS;
@@ -212,6 +213,7 @@
       updatedAt: Date.now(),
       ...extra
     };
+    if (isPdfReader) window.dispatchEvent(new CustomEvent('adaptive-translation-status', { detail: pageStatus }));
   }
 
   function getDirectTextLength(el) {
@@ -1359,7 +1361,8 @@
   function getTextElements() {
     const collected = new Set();
     const result = [];
-    const all = document.body ? document.body.querySelectorAll(ALL_SELECTORS) : [];
+    const root = isPdfReader ? document.getElementById('reading-text') : document.body;
+    const all = root ? root.querySelectorAll(isPdfReader ? 'p:not([data-reader-skip])' : ALL_SELECTORS) : [];
 
     for (const el of all) {
       if (!shouldCollectElement(el)) {
@@ -1828,7 +1831,7 @@
     }
     if (changes.autoTranslate) {
       autoTranslate = changes.autoTranslate.newValue || false;
-      if (autoTranslate && !runState.isRunning()) {
+      if (autoTranslate && !isPdfReader && !runState.isRunning()) {
         runState.setDesiredEnabled(true);
         startAnnotating();
       } else if (!autoTranslate) {
@@ -1880,6 +1883,12 @@
     }
   });
 
+  if (isPdfReader) {
+    window.AdaptivePdfTranslation = {
+      start: async () => { pageCommandReceived = true; await ready; runState.setDesiredEnabled(true); return startAnnotating(); },
+      stop: () => { pageCommandReceived = true; runState.setDesiredEnabled(false); stopAnnotating(); }
+    };
+  }
   const ready = init();
   async function init() {
     try {
@@ -1897,7 +1906,7 @@
 
         // 跨页面持久化 + 翻译续翻：只依赖 background 的判断
         const autoResult = await chrome.runtime.sendMessage({ type: 'checkAutoTranslate' });
-        const shouldAutoTranslate = autoResult && autoResult.shouldTranslate;
+        const shouldAutoTranslate = !isPdfReader && autoResult && autoResult.shouldTranslate;
         if (shouldAutoTranslate && !pageCommandReceived) {
           runState.setDesiredEnabled(true);
           startAnnotating();

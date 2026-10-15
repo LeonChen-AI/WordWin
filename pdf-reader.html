@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN" data-adaptive-pdf-reader="true">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDF 学习阅读 · 自适应翻译</title><link rel="stylesheet" href="pdf-reader.css"><link rel="stylesheet" href="content.css"></head>
+<body>
+<header>
+  <div class="brand"><strong>PDF 学习阅读</strong><span>自适应翻译</span></div>
+  <div class="open-controls"><label class="file-button">打开本地 PDF<input type="file" id="pdf-file" accept="application/pdf,.pdf"></label><input id="pdf-url" type="url" placeholder="或粘贴公开 PDF 链接" aria-label="PDF 链接"><button id="open-url">打开链接</button></div>
+  <p class="hint">文件在本机解析。点击翻译后，仅将阅读区域的文字发送给你配置的模型；翻页会暂停，不会自动翻译整篇。</p>
+  <div class="reader-controls"><button id="prev" disabled>上一页</button><label>第 <input id="page-number" type="number" min="1" value="1" aria-label="页码" disabled> 页 / <span id="page-count">—</span></label><button id="next" disabled>下一页</button><button id="translate" class="primary" disabled>翻译可见内容</button><button id="stop" disabled>停止并恢复</button><button id="settings">模型与等级设置</button></div>
+  <div id="status" role="status" aria-live="polite">请选择 PDF。支持可提取文字的论文；扫描件暂不支持 OCR。</div>
+</header>
+<main>
+ <section class="original-pane" aria-label="PDF 原页"><h2>原页 <span id="document-name"></span></h2><button id="zoom-original" disabled>放大查看原页与配图</button><p class="hint">图表内容未进行 AI 识别；文字图注可随正文翻译，图中关系请对照原图。</p><div id="original"><div class="empty">原始论文、图表和公式会保留在这里</div></div></section>
+ <section class="learning-pane" aria-label="学习对照"><h2>学习对照 <span id="layout-note"></span></h2><div id="reading-text"><div class="empty">打开文件后，按页提取正文。图表与复杂公式请对照左侧原页。</div></div></section>
+</main>
+<dialog id="image-dialog" aria-label="原页与配图放大查看"><button id="close-image">关闭放大</button><p>本机高清查看，不调用模型。图中坐标、箭头和图形关系未翻译。</p><div id="image-detail"></div></dialog>
+<script src="pdf-text-core.js"></script><script src="content-core.js"></script><script src="content-run-state.js"></script><script src="content.js"></script><script type="module" src="pdf-reader.js"></script>
+</body></html>

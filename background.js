@@ -1,4 +1,4 @@
-// AdaptiveTranslation Background Service Worker 0.10.0
+// AdaptiveTranslation Background Service Worker 0.11.0
 // 负责：API 调用、单段标注、对照翻译、校准、设置读取与生词本管理
 
 if (typeof importScripts === 'function') {
@@ -456,6 +456,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.tab) {
       translatingTabs.delete(sender.tab.id);
       cancelTabRequests(sender.tab.id, sender.documentId);
+    } else if (sender.documentId) {
+      for (const [key, scope] of requestScopes) {
+        if (key.startsWith(`extension:${sender.documentId}:`)) { scope.controller.abort(); requestScopes.delete(key); }
+      }
     }
     sendResponse({ ok: true });
     return false;

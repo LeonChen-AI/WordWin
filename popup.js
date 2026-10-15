@@ -373,3 +373,11 @@ window.addEventListener('unload', () => {
 });
 
 initCustomDropdowns();
+
+$('#btn-pdf').addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+  let source='';
+  try { const url=new URL(tab?.url || ''); if(/^https?:$/.test(url.protocol) && (/\.pdf$/i.test(url.pathname) || /\/pdf\//i.test(url.pathname))) source=url.href; } catch {}
+  const url=chrome.runtime.getURL('pdf-reader.html')+(source?'?source='+encodeURIComponent(source):'');
+  await chrome.tabs.create({url});window.close();
+});
