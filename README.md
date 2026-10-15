@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.4-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.10.0-blue" />
   <img alt="Manifest" src="https://img.shields.io/badge/Manifest-V3-green" />
   <img alt="License" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-orange" />
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-supported-brightgreen" />
@@ -18,7 +18,7 @@
 
 ---
 
-AdaptiveTranslation 是一个面向英文阅读与学习的浏览器扩展。
+AdaptiveTranslation 是一个在中英文网页中学习英语的浏览器扩展。
 
 由「LeonAI」与「嘉诚君与世界」联合设计、开发。
 
@@ -36,6 +36,17 @@ AdaptiveTranslation 是一个面向英文阅读与学习的浏览器扩展。
   <img src="screenshots/hero.gif" alt="AdaptiveTranslation 核心效果" width="100%" />
 </p>
 -->
+
+## 两种阅读模式，自动识别
+
+| 当前段落 | 原文旁的学习提示 | 段落下方 |
+| --- | --- | --- |
+| 英文 | 生词（中文释义） | 逐句中文译文 |
+| 中文 | 中文词（英文对应词） | 逐句英文译文 |
+
+直接打开插件并点击“翻译当前页”。插件按段落识别语言，中英混排网页也可使用，无须切换全局语言。英语等级 L1–L5 在两种模式下都决定英语词汇的难度。中文模式点击括注前的中文词，会打开对应**英文词条**，可发音、加入生词本。关闭“段落翻译”只保留词汇提示；点击“取消翻译”恢复原文。
+
+中文网页中很短的导航文字默认跳过，以避免为普通菜单消耗额度。特殊术语的难度和译法仍由模型判断，不保证每段都有生词；现有英文自定义词汇提示仅用于英文模式。
 
 ## 它和整页翻译有什么不同？
 
@@ -386,3 +397,9 @@ AdaptiveTranslation 不自带中转服务器。
 ### 开发与验证
 
 使用 Node.js 22.13+，运行 `npm ci` 后运行 `npm test`。测试使用模拟接口，不消费模型额度。真实浏览器抽样范围与限制见 [测试记录](docs/qa-0.9.4.md)，变更见 [更新说明](CHANGELOG.md)。
+
+### 0.10.0 双向学习验收
+
+18 项离线回归通过，覆盖混合语言、中文源词匹配、英文难度过滤、句子对齐、缓存和取消恢复。真实 Edge 抽样：中文 MDN JavaScript 页面显示 7 段英文译文；中文维基百科“人工智能”显示 24 个英文词汇提示和 16 段译文，实测点击“推理”打开 inference 词条及发音/收词入口。只抽样阅读区域，未全量翻译文章。
+
+技术文档中的行内代码保留在翻译上下文中，代码块和输入框不发送；行内代码本身不添加生词提示。
