@@ -799,3 +799,17 @@
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
 }
+
+/* Keep long glosses within narrow cards and table columns. */
+.adaptive-translation-annotation, .adaptive-translation-translation {
+  white-space: normal !important;
+}
+.adaptive-translation-translation {
+  font-size: calc(0.82em * var(--at-font-scale)) !important;
+  font-weight: normal !important;
+  overflow-wrap: anywhere;
+}
+.adaptive-translation-paragraph-translation {
+  overflow-wrap: anywhere;
+  text-align: start;
+}

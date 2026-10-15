@@ -15,6 +15,9 @@
     '.adaptive-translation-translation',
     '.adaptive-translation-paragraph-translation',
     '[hidden]',
+    '[aria-hidden="true"]',
+    '[inert]',
+    '.adaptive-translation-word-popup',
     'script',
     'style',
     'noscript',
@@ -91,6 +94,11 @@
   let mutationObserver = null;
   let mutationDebounceTimer = null;
   let paragraphStates = new WeakMap();
+  let paragraphSources = new WeakMap();
+  let scrollTimer = null;
+  let resizeHandler = null;
+  let degradedCount = 0;
+  let pageCommandReceived = false;
   let highPriorityQueue = [];
   let lowPriorityQueue = [];
   const inFlightRequests = new Set();
@@ -114,7 +122,6 @@
   };
   // 渲染期间暂停 observer 回调，避免自身 DOM 变更触发无效 collectParagraphs
   let isRendering = false;
-  let ignoreMutationsUntil = 0;
   let fontSize = 100;
   let translationColor = '#818cf8';
   let autoTranslate = false;
@@ -194,7 +201,9 @@
   function updateStatus(state, message, extra = {}) {
     pageStatus = {
       state,
+      enabled: runState.isRunning(),
       message,
+      degradedCount,
       annotatedCount,
       translatedParagraphCount,
       failedCount,
@@ -231,7 +240,7 @@
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = node.parentElement;
-        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (!parent || parent.closest(BASE_EXCLUDED_ANCESTOR_SELECTOR.replace('.adaptive-translation-annotation, ', ''))) return NodeFilter.FILTER_REJECT;
         if (parent.closest('.adaptive-translation-translation, .adaptive-translation-paragraph-translation')) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -499,7 +508,7 @@
 
   function getEffectiveBgColor(el) {
     let node = el;
-    while (node && node !== document.documentElement) {
+    while (node) {
       const bg = window.getComputedStyle(node).backgroundColor;
       const rgb = parseColor(bg);
       if (rgb) return rgb;
@@ -513,16 +522,16 @@
     if (!fgRgb) return fgHex;
 
     const contrast = getContrastRatio(fgRgb, bgRgb);
-    if (contrast >= 3.0) return fgHex; // WCAG AA for large text
+    if (contrast >= 4.5) return fgHex;
 
-    // Adjust lightness to meet 3:1 contrast while preserving hue
+    // Adjust lightness to meet 4.5:1 contrast while preserving hue.
     const [h, s] = rgbToHsl(...fgRgb);
     const bgLum = getLuminance(...bgRgb);
 
     // Try darkening first (works on light backgrounds)
     for (let l = 0.5; l >= 0.05; l -= 0.03) {
       const candidate = hslToRgb(h, s, l);
-      if (getContrastRatio(candidate, bgRgb) >= 3.0) {
+      if (getContrastRatio(candidate, bgRgb) >= 4.5) {
         return `rgb(${candidate[0]}, ${candidate[1]}, ${candidate[2]})`;
       }
     }
@@ -531,7 +540,7 @@
     if (bgLum < 0.5) {
       for (let l = 0.5; l <= 0.95; l += 0.03) {
         const candidate = hslToRgb(h, s, l);
-        if (getContrastRatio(candidate, bgRgb) >= 3.0) {
+        if (getContrastRatio(candidate, bgRgb) >= 4.5) {
           return `rgb(${candidate[0]}, ${candidate[1]}, ${candidate[2]})`;
         }
       }
@@ -571,6 +580,7 @@
       block.classList.add('in-source-element');
       block.setAttribute('lang', 'zh-CN');
       block.setAttribute('role', 'note');
+      block.style.setProperty('color', getContrastSafeColor('#6b7280', getEffectiveBgColor(el)), 'important');
 
       for (const sentence of matched) {
         const span = document.createElement('span');
@@ -586,7 +596,7 @@
       return matched.length;
     } finally {
       isRendering = false;
-      ignoreMutationsUntil = Date.now() + 1000;
+      mutationObserver?.takeRecords();
     }
   }
 
@@ -606,7 +616,7 @@
 
         for (const textNode of textNodes) {
           const parentElement = textNode.parentElement;
-          if (!parentElement ||
+          if (!parentElement || isExcludedElement(parentElement) ||
               parentElement.classList.contains('adaptive-translation-annotation') ||
               parentElement.classList.contains('adaptive-translation-translation') ||
               parentElement.closest('.adaptive-translation-paragraph-translation')) {
@@ -653,7 +663,7 @@
       }
     } finally {
       isRendering = false;
-      ignoreMutationsUntil = Date.now() + 1000;
+      mutationObserver?.takeRecords();
     }
 
     return insertedCount;
@@ -1259,7 +1269,7 @@
 
   function isNearViewport(el) {
     const rect = el.getBoundingClientRect();
-    return rect.top < window.innerHeight + 500 && rect.bottom > -500;
+    return rect.top < window.innerHeight + 500 && rect.bottom > -500 && rect.right > 0 && rect.left < window.innerWidth;
   }
 
   function enqueueParagraph(el, text, runId, priority, retryCount = 0, contextType = getContextType(el), sentences = [], forceAnnotationOnly = false) {
@@ -1424,7 +1434,7 @@
   }
 
   function hasPendingWork(runId) {
-    return countInFlightForRun(runId) > 0 ||
+    return retryTimers.size > 0 || countInFlightForRun(runId) > 0 ||
       contentCore.countQueuedItemsForRun(highPriorityQueue, lowPriorityQueue, runId) > 0;
   }
 
@@ -1442,20 +1452,25 @@
     updateStatus(
       'completed',
       annotatedCount > 0 || translatedParagraphCount > 0
-        ? `已完成，已标注 ${annotatedCount} 处，已翻译 ${translatedParagraphCount} 段`
+        ? `当前可见内容已完成，标注 ${annotatedCount} 处，翻译 ${translatedParagraphCount} 段${degradedCount ? `；${degradedCount} 段仅完成生词标注` : ''}；滚动继续`
         : '已完成，当前页面没有可标注内容'
     );
-    scheduleBackgroundCollect(runId);
   }
 
   function collectParagraphs(runId) {
     if (!runState.shouldAccept(runId)) return;
 
-    const forceAnnotationOnly = contentCore.shouldForceAnnotationOnlyForCollect(pageStatus.state);
+    const forceAnnotationOnly = false;
     const elements = getTextElements();
     const candidates = [];
 
     for (const el of elements) {
+      if (!isNearViewport(el)) continue;
+      const source = getSourceTextNodes(el).map(node => node.textContent).join('').trim();
+      if (paragraphSources.has(el) && paragraphSources.get(el) !== source) {
+        clearElementTranslation(el);
+        paragraphStates.delete(el);
+      }
       const state = paragraphStates.get(el);
       if (state === 'processing' || state === 'done' || state === 'error' || state === 'ignored' || state === 'queued-high' || state === 'queued-low' || state === 'retrying') {
         continue;
@@ -1470,11 +1485,11 @@
       // Skip hidden elements (carousel items, tabs, collapsed sections)
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-        paragraphStates.set(el, 'ignored');
         continue;
       }
 
-      let text = el.textContent.trim();
+      paragraphSources.set(el, source);
+      let text = source;
       if (!text && el.getAttribute) {
         text = (el.getAttribute('aria-label') || '').trim();
       }
@@ -1489,10 +1504,10 @@
 
       // Skip zero-dimension elements (likely in CSS transition or hidden overflow)
       if (rect.width < 10 || rect.height < 5) {
-        paragraphStates.set(el, 'ignored');
         continue;
       }
 
+      paragraphSources.set(el, text);
       const sentences = splitIntoSentences(text);
       candidates.push({
         el,
@@ -1524,10 +1539,11 @@
     }
 
     pumpQueue(runId);
+    if (candidates.length > addedCount) scheduleBackgroundCollect(runId);
   }
 
   function pumpQueue(runId) {
-    if (!runState.shouldAccept(runId)) return;
+    if (!runState.shouldAccept(runId) || document.hidden) return;
 
     while (countInFlightForRun(runId) < maxConcurrentRequests) {
       let item = null;
@@ -1542,6 +1558,7 @@
       }
 
       if (!item) break;
+      if (!isNearViewport(item.el)) { paragraphStates.delete(item.el); continue; }
       annotateParagraph(item, runId);
     }
   }
@@ -1563,6 +1580,7 @@
     try {
       const result = await chrome.runtime.sendMessage({
         type: 'annotate',
+        runId,
         text: item.text,
         contextType: item.contextType,
         scanMode,
@@ -1578,6 +1596,17 @@
         return;
       }
 
+      const currentText = getSourceTextNodes(item.el).map(node => node.textContent).join('').trim();
+      if (currentText !== item.text) {
+        paragraphStates.delete(item.el);
+        scheduleBackgroundCollect(runId);
+        return;
+      }
+      if (result?.cancelled) return;
+      if (result?.fatal) {
+        stopAnnotating({ clearAnnotations: false, statusState: 'error', statusMessage: result.error });
+        return;
+      }
       if (result && result.error) {
         if (result.retryable && scheduleRetry(item, runId)) {
           return;
@@ -1588,9 +1617,10 @@
         return;
       }
 
+      if (result?.warning) degradedCount += 1;
       const annotations = result?.annotations || [];
       const sentenceTranslations = result?.sentenceTranslations || [];
-      if (shouldTranslateParagraph && sentenceTranslations.length > 0) {
+      if (shouldTranslateParagraph && paragraphTranslationMode === 'on' && sentenceTranslations.length > 0) {
         const translatedCount = renderParagraphTranslation(item.el, item.sentences, sentenceTranslations);
         if (translatedCount > 0) {
           translatedParagraphCount += 1;
@@ -1634,19 +1664,20 @@
     // Register this tab so navigation auto-translates the next page
     chrome.runtime.sendMessage({ type: 'registerTranslatingTab' });
     paragraphStates = new WeakMap();
+    paragraphSources = new WeakMap();
     highPriorityQueue = [];
     lowPriorityQueue = [];
     annotatedCount = 0;
     translatedParagraphCount = 0;
     failedCount = 0;
     skippedRenderCount = 0;
+    degradedCount = 0;
     clearPendingCollect();
     const runId = startedRunId;
 
     updateStatus('running', '正在扫描当前页面');
     collectParagraphs(runId);
 
-    let scrollTimer = null;
     scrollHandler = () => {
       if (scrollTimer) return;
       scrollTimer = setTimeout(() => {
@@ -1654,18 +1685,25 @@
         collectParagraphs(runId);
       }, 500);
     };
-    window.addEventListener('scroll', scrollHandler, { passive: true });
+    window.addEventListener('scroll', scrollHandler, { passive: true, capture: true });
+    resizeHandler = scrollHandler;
+    window.addEventListener('resize', resizeHandler);
+    document.addEventListener('visibilitychange', scrollHandler);
 
-    mutationObserver = new MutationObserver(() => {
+    mutationObserver = new MutationObserver(records => {
       if (isRendering) return;
-      if (Date.now() < ignoreMutationsUntil) return;
+      if (records.every(record => {
+        const target = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+        return target?.closest('.adaptive-translation-annotation, .adaptive-translation-translation, .adaptive-translation-source-sentence, .adaptive-translation-paragraph-translation, .adaptive-translation-word-popup');
+      })) return;
+
       if (mutationDebounceTimer) return;
       mutationDebounceTimer = setTimeout(() => {
         mutationDebounceTimer = null;
         collectParagraphs(runId);
       }, 800);
     });
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    mutationObserver.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'aria-hidden', 'class', 'style', 'open'] });
   }
 
   function stopAnnotating({ clearAnnotations = true, statusState = 'off', statusMessage = '未开启' } = {}) {
@@ -1673,12 +1711,16 @@
     // Unregister this tab from auto-translate tracking
     chrome.runtime.sendMessage({ type: 'unregisterTranslatingTab' });
     paragraphStates = new WeakMap();
+    paragraphSources = new WeakMap();
     highPriorityQueue = [];
     lowPriorityQueue = [];
     clearPendingCollect();
 
+    if (scrollTimer) { clearTimeout(scrollTimer); scrollTimer = null; }
+    if (resizeHandler) { window.removeEventListener('resize', resizeHandler); resizeHandler = null; }
     if (scrollHandler) {
-      window.removeEventListener('scroll', scrollHandler);
+      document.removeEventListener('visibilitychange', scrollHandler);
+      window.removeEventListener('scroll', scrollHandler, true);
       scrollHandler = null;
     }
     if (mutationObserver) {
@@ -1717,6 +1759,12 @@
     updateStatus(statusState, statusMessage);
   }
 
+  function clearElementTranslation(el) {
+    el.querySelectorAll('.adaptive-translation-paragraph-translation, .adaptive-translation-translation').forEach(node => node.remove());
+    el.querySelectorAll('.adaptive-translation-annotation, .adaptive-translation-source-sentence').forEach(unwrapElement);
+    mutationObserver?.takeRecords();
+  }
+
   function restartAnnotating() {
     if (!runState.isRunning()) return;
     stopAnnotating();
@@ -1733,7 +1781,8 @@
   }
 
   // 设置变化只影响当前正在处理的页面，不再使用全局 enabled 自动启动。
-  chrome.storage.onChanged.addListener((changes) => {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
     let shouldRestart = false;
 
     if (changes.concurrency) {
@@ -1757,7 +1806,8 @@
         if (existing.length > 0) {
           // 已有段落翻译 DOM，直接显示
           existing.forEach(el => { el.style.display = ''; });
-        } else if (runState.isRunning()) {
+        }
+        if (runState.isRunning()) {
           // 正在翻译但没有段落翻译 DOM（之前 mode=off），需要重翻
           shouldRestart = true;
         }
@@ -1797,16 +1847,18 @@
       return true;
     }
     if (message.type === 'startPageAnnotating') {
+      pageCommandReceived = true;
       runState.setDesiredEnabled(true);
       if (!runState.isRunning() && pageStatus.state && pageStatus.state !== 'off') {
         stopAnnotating({ clearAnnotations: true, statusState: 'off', statusMessage: '准备重新翻译' });
       }
-      startAnnotating()
+      ready.then(() => startAnnotating())
         .then(() => sendResponse({ ok: true }))
         .catch(err => sendResponse({ error: err.message || '启动失败' }));
       return true;
     }
     if (message.type === 'stopPageAnnotating') {
+      pageCommandReceived = true;
       runState.setDesiredEnabled(false);
       stopAnnotating();
       sendResponse({ ok: true });
@@ -1816,13 +1868,14 @@
       // Background detected this tab navigated from a translating page
       if (!runState.isRunning()) {
         runState.setDesiredEnabled(true);
-        startAnnotating();
+        ready.then(() => startAnnotating());
       }
       sendResponse({ ok: true });
       return true;
     }
   });
 
+  const ready = init();
   async function init() {
     try {
       const settings = await chrome.runtime.sendMessage({ type: 'getSettings' });
@@ -1835,18 +1888,16 @@
         autoTranslate = settings.autoTranslate || false;
         level = settings.level || 'L3';
         applyFontScale();
-        runState.setDesiredEnabled(false);
+        if (!pageCommandReceived) runState.setDesiredEnabled(false);
 
         // 跨页面持久化 + 翻译续翻：只依赖 background 的判断
         const autoResult = await chrome.runtime.sendMessage({ type: 'checkAutoTranslate' });
         const shouldAutoTranslate = autoResult && autoResult.shouldTranslate;
-        if (shouldAutoTranslate) {
+        if (shouldAutoTranslate && !pageCommandReceived) {
           runState.setDesiredEnabled(true);
           startAnnotating();
         }
       }
     } catch {}
   }
-
-  init();
 })();

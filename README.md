@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.3-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.4-blue" />
   <img alt="Manifest" src="https://img.shields.io/badge/Manifest-V3-green" />
   <img alt="License" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-orange" />
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-supported-brightgreen" />
@@ -369,3 +369,20 @@ AdaptiveTranslation 不自带中转服务器。
 本项目源码公开，但因限制商业使用，不属于 OSI 定义的开源软件。项目名称、商标、品牌、图标和视觉素材不随源码许可证一并授权。
 
 过去已经合法取得且当时明确附带 MIT License 的历史副本，仍按其当时条款处理；该历史许可不会延伸到当前或后续取得的副本。
+
+
+## 0.9.4：稳定阅读与费用控制
+
+- 仅处理当前视口及附近内容，滚动时继续；隐藏标签页暂停新增任务。
+- 全部标签页共享最多 6 个并发请求；同一轮重复内容复用正在进行的请求。
+- 完成后仍可取消，取消会恢复原文并中止排队、网络请求和重试。
+- 动态页面内容变化后重新识别；过期返回不会写回已经变化的段落。
+- 长段落分批处理并校验句子编号，避免只翻译前 12 句。
+- 正常的空生词结果不额外调用模型；余额、鉴权和配置错误不会触发降级补请求。
+- 改善深浅背景对比度和窄栏内长释义换行。
+
+现有模型、API Key 与服务商配置保持不变。缓存只在当前后台生命周期内有效；关闭/刷新页面或重新加载扩展后，浏览器或模型服务端已经接受的请求不保证退费。
+
+### 开发与验证
+
+使用 Node.js 22.13+，运行 `npm ci` 后运行 `npm test`。测试使用模拟接口，不消费模型额度。真实浏览器抽样范围与限制见 [测试记录](docs/qa-0.9.4.md)，变更见 [更新说明](CHANGELOG.md)。

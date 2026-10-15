@@ -48,8 +48,19 @@
     }
 
     return segments
-      .filter(item => item.length >= 8 && /[A-Za-z]/.test(item))
-      .slice(0, 12)
+      .filter(item => /[A-Za-z]/.test(item))
+      .flatMap(item => {
+        const chunks = [];
+        let rest = item;
+        while (rest.length > 1600) {
+          const space = rest.lastIndexOf(' ', 1600);
+          const end = space > 800 ? space : 1600;
+          chunks.push(rest.slice(0, end));
+          rest = rest.slice(end).trimStart();
+        }
+        if (rest) chunks.push(rest);
+        return chunks;
+      })
       .map((item, index) => ({
         id: index + 1,
         text: item
@@ -67,7 +78,7 @@
   }
 
   function shouldForceAnnotationOnlyForCollect(pageState) {
-    return pageState === 'completed';
+    return false;
   }
 
   return {
