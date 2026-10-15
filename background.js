@@ -1,8 +1,8 @@
-// AdaptiveTranslation Background Service Worker 0.9.3
+// AdaptiveTranslation Background Service Worker 0.9.4
 // 负责：API 调用、单段标注、对照翻译、校准、设置读取与生词本管理
 
 if (typeof importScripts === 'function') {
-  importScripts('background-core.js');
+  importScripts('background-core.js', 'request-scheduler.js');
 }
 
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
@@ -22,6 +22,37 @@ const backgroundCore = globalThis.AdaptiveTranslationBackgroundCore;
 
 // Track tabs that are actively translating for "continue translating" behavior
 const translatingTabs = new Set();
+const requestScheduler = globalThis.AdaptiveTranslationRequestScheduler.create(6);
+const requestScopes = new Map();
+function scopeKey(sender, runId) {
+  return `${sender.tab?.id ?? 'extension'}:${sender.documentId || ''}:${runId || 0}`;
+}
+function cancelTabRequests(tabId, documentId) {
+  for (const [key, scope] of requestScopes) {
+    if (key.startsWith(`${tabId}:`) && (!documentId || key.startsWith(`${tabId}:${documentId}:`))) {
+      scope.controller.abort();
+      requestScopes.delete(key);
+    }
+  }
+}
+function scopedAnnotate(message, sender) {
+  const key = scopeKey(sender, message.runId);
+  let scope = requestScopes.get(key);
+  if (!scope) {
+    scope = { controller: new AbortController(), pending: new Map() };
+    requestScopes.set(key, scope);
+  }
+  const jobKey = JSON.stringify([message.text, message.contextType, message.scanMode, message.paragraphTranslationMode, message.sentences]);
+  if (scope.pending.has(jobKey)) return scope.pending.get(jobKey);
+  const task = requestScheduler.run(() => handleAnnotate(message.text, message.contextType,
+    message.scanMode, message.paragraphTranslationMode, message.sentences, scope.controller.signal), scope.controller.signal)
+    .finally(() => {
+      scope.pending.delete(jobKey);
+      if (!scope.pending.size && requestScopes.get(key) === scope) requestScopes.delete(key);
+    });
+  scope.pending.set(jobKey, task);
+  return task;
+}
 
 // --- 翻译结果缓存 ---
 const TRANSLATION_CACHE_MAX = 500;
@@ -44,19 +75,20 @@ function getCacheSignature(settings) {
     String(settings.baseUrl || '').replace(/\/+$/, ''),
     settings.model || DEFAULT_MODEL,
     normalizeThinkingMode(settings.thinkingMode),
-    hashCachePart(promptTemplate)
+    promptTemplate
   ].join('|');
 }
 
 function getCacheKey(text, level, contextType, scanMode, paragraphTranslationMode, settings) {
-  return [
+  return JSON.stringify([
     getCacheSignature(settings),
     level,
     normalizeContextType(contextType),
     scanMode,
     paragraphTranslationMode,
-    hashCachePart(text)
-  ].join('|');
+    settings.cacheSentenceSignature,
+    text
+  ]);
 }
 
 function getCachedTranslation(text, level, contextType, scanMode, paragraphTranslationMode, settings) {
@@ -342,15 +374,9 @@ function shouldUseFullCoverage(scanMode, contextType, text) {
 // 消息路由
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'annotate') {
-    handleAnnotate(
-      message.text,
-      message.contextType,
-      message.scanMode,
-      message.paragraphTranslationMode,
-      message.sentences
-    )
+    scopedAnnotate(message, sender)
       .then(sendResponse)
-      .catch(err => sendResponse({ error: err.message }));
+      .catch(err => sendResponse({ error: err.message, cancelled: err.name === 'AbortError' }));
     return true;
   }
 
@@ -425,7 +451,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'unregisterTranslatingTab') {
-    if (sender.tab) translatingTabs.delete(sender.tab.id);
+    if (sender.tab) {
+      translatingTabs.delete(sender.tab.id);
+      cancelTabRequests(sender.tab.id, sender.documentId);
+    }
     sendResponse({ ok: true });
     return false;
   }
@@ -443,6 +472,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Auto-translate on navigation from translating tabs
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading') cancelTabRequests(tabId);
   if (changeInfo.status === 'complete' && translatingTabs.has(tabId)) {
     // Tab navigated while it was translating — auto-translate the new page
     chrome.tabs.sendMessage(tabId, { type: 'autoStartTranslation' }).catch(() => {});
@@ -452,6 +482,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Clean up when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   translatingTabs.delete(tabId);
+  cancelTabRequests(tabId);
 });
 
 // --- 生词本操作 ---
@@ -631,14 +662,19 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // --- 单段落标注 ---
-async function handleAnnotate(text, contextType, scanMode, paragraphTranslationMode, sentences) {
+async function handleAnnotate(text, contextType, scanMode, paragraphTranslationMode, sentences, signal) {
+  signal?.throwIfAborted();
+  if (typeof text !== 'string' || text.length > 20000) return { error: '该文本块过长或格式无效，暂不处理以控制用量', retryable: false };
   const settings = resolveStoredApiSettings(await chrome.storage.local.get(['apiKey', 'baseUrl', 'model', 'level', 'customPrompt', 'serviceProvider', 'thinkingMode', 'providerConfigs']));
-  if (!settings.apiKey) return { error: '请先在插件设置中填写接口密钥' };
+  signal?.throwIfAborted();
+  settings.requestSignal = signal;
+  if (!settings.apiKey) return { error: '请先在插件设置中填写接口密钥', fatal: true };
   if (text.trim().length < 2) return { annotations: [] };
 
   const level = normalizeLevel(settings.level);
   const normalizedScanMode = normalizeScanMode(scanMode);
   const normalizedPTM = normalizeParagraphTranslationMode(paragraphTranslationMode);
+  settings.cacheSentenceSignature = normalizedPTM === 'on' ? JSON.stringify(sentences) : '';
 
   // 检查缓存
   const cached = getCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings);
@@ -658,17 +694,20 @@ async function handleAnnotate(text, contextType, scanMode, paragraphTranslationM
         setCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings, result);
         return result;
       } catch (richErr) {
+        if (!richErr.formatError || signal?.aborted) throw richErr;
         console.warn('AdaptiveTranslation: 对照翻译失败，降级为生词标注', richErr);
         try {
           const annotations = await callLLM(text, level, settings, contextType, scanMode);
           const fallback = backgroundCore.buildAnnotationOnlyFallback(annotations, richErr);
-          setCachedTranslation(text, level, contextType, normalizedScanMode, normalizedPTM, settings, fallback);
+          // A partial fallback is not a complete translation cache entry.
           return fallback;
         } catch (fallbackErr) {
           console.warn('AdaptiveTranslation: 生词标注降级也失败', fallbackErr);
           const message = fallbackErr?.message || richErr?.message || '标注失败，请检查 API 设置或网络';
           return {
             error: message,
+            cancelled: signal?.aborted || false,
+            fatal: Boolean(fallbackErr?.fatal),
             retryable: Boolean(fallbackErr?.retryable || richErr?.retryable)
           };
         }
@@ -682,6 +721,8 @@ async function handleAnnotate(text, contextType, scanMode, paragraphTranslationM
   } catch (err) {
     return {
       error: err.message,
+      cancelled: signal?.aborted || false,
+      fatal: Boolean(err.fatal),
       retryable: Boolean(err.retryable)
     };
   }
@@ -698,6 +739,7 @@ async function handleCalibrate(text, level) {
   } catch (err) {
     return {
       error: err.message,
+      fatal: Boolean(err.fatal),
       retryable: Boolean(err.retryable)
     };
   }
@@ -837,100 +879,49 @@ function extractMessageContent(msg) {
   return '';
 }
 
-async function requestAnnotations(prompt, settings, { maxTokens = 900 } = {}) {
-  const url = buildChatCompletionsUrl(settings.baseUrl);
+async function requestModelContent(prompt, settings, maxTokens) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let response;
+  const outerSignal = settings.requestSignal;
+  outerSignal?.throwIfAborted();
+  const cancel = () => controller.abort();
+  outerSignal?.addEventListener('abort', cancel, { once: true });
+  const timeoutId = setTimeout(cancel, REQUEST_TIMEOUT_MS);
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`
-      },
+    const response = await fetch(buildChatCompletionsUrl(settings.baseUrl), {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
       body: JSON.stringify(buildRequestBody(prompt, settings, maxTokens))
     });
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw createAdaptiveTranslationError('API 请求超时', { retryable: true });
+    if (!response.ok) {
+      const error = createAdaptiveTranslationError(`API 请求失败 (${response.status})，请检查余额、权限或接口配置`,
+        { retryable: isRetryableStatus(response.status) });
+      error.fatal = [400, 401, 402, 403, 404].includes(response.status);
+      throw error;
     }
-    throw createAdaptiveTranslationError(`API 请求失败：${err.message}`, { retryable: true });
+    const data = await response.json();
+    recordTokenUsage(settings, data.usage);
+    const content = extractMessageContent(data.choices?.[0]?.message);
+    if (!content || data.choices?.[0]?.finish_reason === 'length') {
+      const error = createAdaptiveTranslationError('模型返回内容为空或被截断');
+      error.formatError = true;
+      throw error;
+    }
+    return content;
+  } catch (error) {
+    if (outerSignal?.aborted) throw new DOMException('已取消翻译', 'AbortError');
+    if (controller.signal.aborted) throw createAdaptiveTranslationError('API 请求超时', { retryable: true });
+    if (error instanceof TypeError) throw createAdaptiveTranslationError('API 网络请求失败', { retryable: true });
+    throw error;
   } finally {
     clearTimeout(timeoutId);
+    outerSignal?.removeEventListener('abort', cancel);
   }
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw createAdaptiveTranslationError(
-      `API 请求失败 (${response.status}): ${errText}`,
-      { retryable: isRetryableStatus(response.status) }
-    );
-  }
-
-  const data = await response.json();
-  recordTokenUsage(settings, data.usage);
-
-  if (!data.choices || data.choices.length === 0) {
-    throw createAdaptiveTranslationError('API 返回格式异常：choices 为空', { retryable: true });
-  }
-  const msg = data.choices[0].message;
-  const content = extractMessageContent(msg);
-  if (!content) {
-    throw createAdaptiveTranslationError('API 返回格式异常：message 内容为空', { retryable: true });
-  }
-
-  return parseJSON(content);
 }
-
+async function requestAnnotations(prompt, settings, { maxTokens = 900 } = {}) {
+  return parseJSON(await requestModelContent(prompt, settings, maxTokens));
+}
 async function requestJSON(prompt, settings, { maxTokens = 900 } = {}) {
-  const url = buildChatCompletionsUrl(settings.baseUrl);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`
-      },
-      body: JSON.stringify(buildRequestBody(prompt, settings, maxTokens))
-    });
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw createAdaptiveTranslationError('API 请求超时', { retryable: true });
-    }
-    throw createAdaptiveTranslationError(`API 请求失败：${err.message}`, { retryable: true });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw createAdaptiveTranslationError(
-      `API 请求失败 (${response.status}): ${errText}`,
-      { retryable: isRetryableStatus(response.status) }
-    );
-  }
-
-  const data = await response.json();
-  recordTokenUsage(settings, data.usage);
-
-  if (!data.choices || data.choices.length === 0) {
-    throw createAdaptiveTranslationError('API 返回格式异常：choices 为空', { retryable: true });
-  }
-  const msg = data.choices[0].message;
-  const content = extractMessageContent(msg);
-  if (!content) {
-    throw createAdaptiveTranslationError('API 返回格式异常：message 内容为空', { retryable: true });
-  }
-
-  return parseJSONValue(content);
+  return parseJSONValue(await requestModelContent(prompt, settings, maxTokens));
 }
 
 function normalizeTokenCount(value) {
@@ -1058,23 +1049,6 @@ async function callLLM(text, level, settings, contextType, scanMode = DEFAULT_SC
     normalizedContextType
   );
 
-  if (shouldRunSupplementalCheck(text, normalizedLevel, normalizedContextType, annotations)) {
-    const supplementalPrompt = buildPrompt(
-      promptTemplate,
-      text,
-      normalizedLevel,
-      profile,
-      normalizedContextType,
-      SUPPLEMENTAL_RECHECK_PROMPT
-    );
-    annotations = backgroundCore.filterAnnotationsByLevel(
-      await requestAnnotations(supplementalPrompt, settings),
-      normalizedLevel,
-      text,
-      normalizedContextType
-    );
-  }
-
   return annotations.slice(0, profile.maxPerParagraph);
 }
 
@@ -1110,10 +1084,7 @@ function buildRichPrompt(text, sentences, level, profile, contextType, scanMode)
   "sentences": [{"id": 1, "translation": "第 1 句中文翻译"}]
 }
 
-完整段落：
-${text}
-
-编号句子：
+完整段落（按原顺序编号，结合上下文翻译）：
 ${numberedSentences}`;
 }
 
@@ -1128,6 +1099,26 @@ async function callRichLLM(text, sentences, level, settings, contextType, scanMo
     return { annotations, sentenceTranslations: [] };
   }
 
+  const groups = [];
+  let group = [], length = 0;
+  for (const sentence of normalizedSentences) {
+    if (group.length && (group.length >= 8 || length + sentence.text.length > 1600)) {
+      groups.push(group); group = []; length = 0;
+    }
+    group.push(sentence); length += sentence.text.length;
+  }
+  if (group.length) groups.push(group);
+  if (groups.length > 1) {
+    const combined = { annotations: [], sentenceTranslations: [] };
+    for (const batch of groups) {
+      settings.requestSignal?.throwIfAborted();
+      const part = await callRichLLM(batch.map(item => item.text).join(' '), batch, level, settings, contextType, scanMode);
+      combined.annotations.push(...part.annotations);
+      combined.sentenceTranslations.push(...part.sentenceTranslations);
+    }
+    combined.annotations = Array.from(new Map(combined.annotations.map(item => [item.word.toLowerCase(), item])).values()).slice(0, profile.maxPerParagraph);
+    return combined;
+  }
   const prompt = buildRichPrompt(
     text,
     normalizedSentences,
@@ -1145,6 +1136,11 @@ async function callRichLLM(text, sentences, level, settings, contextType, scanMo
   ).slice(0, profile.maxPerParagraph);
   const sentenceTranslations = normalizeSentenceTranslations(parsed.sentences || [], normalizedSentences);
 
+  if (sentenceTranslations.length !== normalizedSentences.length) {
+    const error = createAdaptiveTranslationError('模型遗漏部分句子');
+    error.formatError = true;
+    throw error;
+  }
   return { annotations, sentenceTranslations };
 }
 
@@ -1153,8 +1149,10 @@ function parseJSONValue(content) {
   try {
     return backgroundCore.parseJSONValue(content);
   } catch {
-    console.error('AdaptiveTranslation: LLM 返回解析失败:', content);
-    throw createAdaptiveTranslationError('LLM 返回解析失败：不是合法 JSON', { retryable: true });
+    console.error('AdaptiveTranslation: LLM 返回解析失败');
+    const error = createAdaptiveTranslationError('LLM 返回解析失败：不是合法 JSON');
+    error.formatError = true;
+    throw error;
   }
 }
 
@@ -1175,7 +1173,7 @@ function normalizeInputSentences(sentences) {
       text: String(item.text || '').trim()
     }))
     .filter(item => Number.isInteger(item.id) && item.id > 0 && item.text.length > 0)
-    .slice(0, 12);
+;
 }
 
 function normalizeSentenceTranslations(items, sourceSentences) {
@@ -1210,8 +1208,10 @@ function parseJSON(content) {
     if (err.retryable) {
       throw err;
     }
-    console.error('AdaptiveTranslation: LLM 返回解析失败:', content);
-    throw createAdaptiveTranslationError('LLM 返回解析失败：不是合法 JSON', { retryable: true });
+    console.error('AdaptiveTranslation: LLM 返回解析失败');
+    const error = createAdaptiveTranslationError('LLM 返回解析失败：不是合法 JSON');
+    error.formatError = true;
+    throw error;
   }
 }
 

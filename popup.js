@@ -150,7 +150,7 @@ function isPageActive(status) {
 }
 
 function isPageTranslating(status) {
-  return Boolean(status && status.state === 'running');
+  return Boolean(status && (status.enabled ?? ['running', 'completed'].includes(status.state)));
 }
 
 function setToggleBtnLoading(loading) {
@@ -350,8 +350,8 @@ function updateStatusCard(status, tabUrl) {
       summaryTitle.textContent = '正在标注';
       summaryDetail.textContent = `待处理 ${pending} 项`;
     } else {
-      text.textContent = '标注完成';
-      summaryTitle.textContent = '当前页已标注';
+      text.textContent = status.degradedCount ? `有 ${status.degradedCount} 段仅完成生词标注` : '滚动页面继续翻译';
+      summaryTitle.textContent = '可见内容已处理';
       summaryDetail.textContent = `生词 ${annotated} 个 · 段落 ${paragraphs} 段`;
     }
   }
