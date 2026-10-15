@@ -70,9 +70,9 @@ function page(html,responder){
  return {w,dom,requests,send};
 }
 test('viewport-only, source exclusions, restore, and late-result suppression',async()=>{
- const p=page('<p id="first">A complete English paragraph contains enough words to translate properly. <code>privateCodeValue</code></p><p data-top="5000">This paragraph is far below the viewport and must wait.</p><p hidden>This hidden English text must never be sent.</p>');
+ const p=page('<p id="first">A complete English paragraph contains enough words to translate properly. <code>exampleCodeValue</code></p><p data-top="5000">This paragraph is far below the viewport and must wait.</p><p hidden>This hidden English text must never be sent.</p>');
  await tick();await p.send('startPageAnnotating');await tick();
- assert.equal(p.requests.length,1);assert(!p.requests[0].text.includes('privateCodeValue'));
+ assert.equal(p.requests.length,1);assert(p.requests[0].text.includes('exampleCodeValue'));
  assert.equal(p.w.document.querySelectorAll('.adaptive-translation-paragraph-translation').length,1);
  assert.equal((await p.send('getPageStatus')).enabled,true);
  await p.send('stopPageAnnotating');assert.equal(p.w.document.querySelectorAll('.adaptive-translation-paragraph-translation').length,0);
@@ -133,4 +133,62 @@ test('calibration returns its API error without referencing a page signal',async
  const bg=background(async()=>({ok:false,status:401}));
  const result=await bg.call("handleCalibrate('An extraordinary academic calibration example.', 'L3')");
  assert.equal(result.fatal,true);assert.match(result.error,/401/);
+});
+test('language routing handles Chinese, mixed terminology, English, and unsupported text',()=>{
+ assert.equal(core.detectTextLanguage('云计算让用户通过 Internet 获取服务器和数据库资源。'),'zh');
+ assert.equal(core.detectTextLanguage('Artificial intelligence improves decision making.'),'en');
+ assert.equal(core.detectTextLanguage('これは日本語の文章です。'),null);
+ assert.equal(core.detectTextLanguage('12345!'),null);
+ const source='这是第一句话。这是第二句话！还有最后一句？';
+ assert.equal(core.splitIntoSentences(source).length,3);
+ assert.equal(core.splitIntoSentences('可持续发展'.repeat(300)).map(x=>x.text).join(''),'可持续发展'.repeat(300));
+ assert(core.splitIntoSentences('可持续发展'.repeat(300)).every(x=>x.text.length<=400));
+});
+test('reverse annotations validate Chinese anchors and English difficulty',()=>{
+ const bg=background(()=>{throw Error('no network')});
+ const result=bg.call(`filterLearningAnnotations([
+ {word:'可持续发展',translation:'sustainable development',difficulty:'L4'},
+ {word:'你好',translation:'hello',difficulty:'L1'},
+ {word:'不存在',translation:'absent',difficulty:'L4'},
+ {word:'知识',translation:'中文',difficulty:'L5'},
+ {word:'知识',translation:'knowledge'}], 'L3','你好，可持续发展需要知识。','paragraph')`);
+ assert.equal(result.length,1);assert.equal(result[0].translation,'sustainable development');
+});
+test('Chinese requests return complete English sentences and reuse cache',async()=>{
+ let calls=0;
+ const bg=background(async(url,{body})=>{calls++;const prompt=JSON.parse(body).messages[0].content;
+ assert(prompt.includes('自然英文'));assert.equal((prompt.match(/这是一个关于可持续发展的中文段落。/g)||[]).length,1);
+ return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({annotations:[{word:'可持续发展',translation:'sustainable development',difficulty:'L4'}],sentences:[{id:1,translation:'This Chinese paragraph concerns sustainable development.'}]})}}]})};});
+ const expression="handleAnnotate('这是一个关于可持续发展的中文段落。','paragraph','full','on',[{id:1,text:'这是一个关于可持续发展的中文段落。'}])";
+ const result=await bg.call(expression);await bg.call(expression);
+ assert.equal(result.annotations.length,1);assert.equal(result.sentenceTranslations.length,1);assert.equal(calls,1);
+});
+test('Chinese annotation-only mode uses one request with no full translation',async()=>{
+ let calls=0;const bg=background(async(url,{body})=>{calls++;assert(JSON.parse(body).messages[0].content.includes('不翻译整段'));return {ok:true,json:async()=>({choices:[{message:{content:'[]'}}]})}});
+ const result=await bg.call("handleAnnotate('这是一个关于可持续发展的中文段落。','paragraph','full','off',[])");
+ assert.equal(result.annotations.length,0);assert.equal(calls,1);
+});
+test('mixed page renders bilingual directions, aligned sentences and English vocabulary metadata',async()=>{
+ const p=page('<p id="zh">可持续发展需要保护生态系统。科学研究能改善决策过程。</p><p id="en">An English paragraph remains available alongside the Chinese source content.</p>',msg=>({
+ annotations:msg.text.includes('可持续发展')?[{word:'可持续发展',translation:'sustainable development',difficulty:'L4'}]:[],
+ sentenceTranslations:msg.sentences.map(s=>({id:s.id,translation:msg.text.includes('可持续发展')?`English sentence ${s.id}.`:'这是英文段落的中文译文。'}))
+ }));
+ await tick();await p.send('startPageAnnotating');await tick();
+ const zh=p.w.document.querySelector('#zh');
+ assert.equal(zh.querySelector('[role=note]').lang,'en');
+ assert.equal(zh.querySelectorAll('.adaptive-translation-target-sentence').length,2);
+ assert(zh.querySelector('[role=note]').textContent.includes('. English'));
+ assert.equal(zh.querySelector('.adaptive-translation-annotation').dataset.learningWord,'sustainable development');
+ assert.equal(zh.querySelector('.adaptive-translation-translation').textContent,'(sustainable development)');
+ assert.equal(p.w.document.querySelector('#en [role=note]').lang,'zh-CN');
+ await p.send('stopPageAnnotating');assert.equal(zh.textContent,'可持续发展需要保护生态系统。科学研究能改善决策过程。');p.dom.window.close();
+});
+
+test('inline code stays unchanged while code blocks and inputs are never sent',async()=>{
+ const p=page('<p>Use <code>toString()</code> to retrieve a readable textual representation.</p><pre><code>BLOCK_SECRET</code></pre><input value="INPUT_SECRET">',msg=>({annotations:[{word:'toString',translation:'示例'}],sentenceTranslations:msg.sentences.map(s=>({id:s.id,translation:'使用 toString() 获取文本表示。'}))}));
+ await tick();await p.send('startPageAnnotating');await tick();
+ assert.equal(p.requests.length,1);assert(p.requests[0].text.includes('toString()'));
+ assert(!p.requests[0].text.includes('SECRET'));
+ assert.equal(p.w.document.querySelector('p code').textContent,'toString()');
+ assert.equal(p.w.document.querySelector('p code .adaptive-translation-annotation'),null);p.dom.window.close();
 });
