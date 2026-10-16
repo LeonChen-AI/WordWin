@@ -55,8 +55,8 @@ test('cancelling active tab aborts transport and does not invoke fallback',async
  await tick();bg.call('cancelTabRequests(7)');
  const value=await result;assert.equal(value.cancelled,true);assert.equal(calls,1);assert.equal(aborted,true);
 });
-function page(html,responder){
- const dom=new JSDOM(html,{url:'https://example.test',runScripts:'outside-only',pretendToBeVisual:true});
+function page(html,responder,options={}){
+ const dom=new JSDOM(html,{url:options.url||'https://example.test',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window; let listener;const requests=[];
  w.HTMLElement.prototype.getBoundingClientRect=function(){const top=Number(this.dataset.top||100);return {top,bottom:top+40,width:600,height:40,left:0,right:600}};
  w.chrome={runtime:{sendMessage:async msg=>{
@@ -191,4 +191,17 @@ test('inline code stays unchanged while code blocks and inputs are never sent',a
  assert(!p.requests[0].text.includes('SECRET'));
  assert.equal(p.w.document.querySelector('p code').textContent,'toString()');
  assert.equal(p.w.document.querySelector('p code .adaptive-translation-annotation'),null);p.dom.window.close();
+});
+
+test('PDF bridge only translates reading text and ignores its controls and author metadata',async()=>{
+ const p=page('<html data-adaptive-pdf-reader="true"><body><header><p>These reader controls must never become translation input.</p></header><div id="reading-text"><p>A research paragraph that describes a useful neural architecture.</p><p data-reader-skip="true">Research authors and public@example.com metadata.</p></div></body></html>',null,{url:'chrome-extension://test/pdf-reader.html'});
+ await tick();assert.equal(p.requests.length,0);
+ await p.w.AdaptivePdfTranslation.start();await tick();assert.equal(p.requests.length,1);assert(p.requests[0].text.includes('neural architecture'));
+ p.w.AdaptivePdfTranslation.stop();assert.equal(p.w.document.querySelectorAll('[role=note]').length,0);p.dom.window.close();
+});
+test('extension-document cancellation aborts its own PDF request scope',async()=>{
+ let aborted=false;const bg=background((url,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(new DOMException('cancel','AbortError'))})));
+ const pending=bg.call("scopedAnnotate({text:'A research paragraph with substantial scientific context.',runId:1},{documentId:'pdf-document'})");
+ await tick();bg.callbacks.message({type:'unregisterTranslatingTab'},{documentId:'pdf-document'},()=>{});
+ const result=await pending;assert.equal(result.cancelled,true);assert.equal(aborted,true);
 });

@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "WordWin - Learn English While Reading"
+  },
+  "extensionDescription": {
+    "message": "Learn English on Chinese/English webpages and text PDFs with vocabulary hints and aligned translations. Requires your own model API."
+  }
+}
