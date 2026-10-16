@@ -1,4 +1,4 @@
-// AdaptiveTranslation Background Service Worker 0.11.0
+// AdaptiveTranslation Background Service Worker 0.11.1
 // 负责：API 调用、单段标注、对照翻译、校准、设置读取与生词本管理
 
 if (typeof importScripts === 'function') {

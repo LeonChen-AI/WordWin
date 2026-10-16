@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.11.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.11.1-blue" />
   <img alt="Manifest" src="https://img.shields.io/badge/Manifest-V3-green" />
   <img alt="License" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-orange" />
   <img alt="Chrome" src="https://img.shields.io/badge/Chrome-supported-brightgreen" />
@@ -299,7 +299,7 @@ AdaptiveTranslation 不自带中转服务器。
 - 生词本
 - Token 用量记录
 
-为了生成生词标注、段落翻译和单词详情，当前网页中需要处理的英文文本会发送给你配置的模型服务商。
+为了生成生词标注、段落翻译和单词详情，网页或 PDF 中需要处理的中英文文本，以及请求的单词，会发送给你配置的模型服务商。
 
 请确认你信任所使用的服务商，并避免在包含密码、个人信息、商业机密或其他敏感内容的页面中启用翻译。详细说明请查看 [PRIVACY.md](PRIVACY.md)。
 

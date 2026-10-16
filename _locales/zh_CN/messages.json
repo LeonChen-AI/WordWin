@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "自适应翻译"
+  },
+  "extensionDescription": {
+    "message": "在中英文网页和 PDF 中学习英语：按水平提示生词，提供逐句对照翻译。需自行配置模型接口。"
+  }
+}
