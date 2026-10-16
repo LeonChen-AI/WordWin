@@ -11,3 +11,7 @@
 - 用途：在本机解析和绘制用户选择的 PDF。
 
 开发测试依赖列于 package.json 和 package-lock.json，依其各自许可证使用；node_modules 不包含于扩展发行包。
+
+## Source Serif 4
+
+随扩展打包的 Source Serif 4 字体由 Adobe 发布，采用 SIL Open Font License 1.1。许可与版权声明见 [fonts/LICENSE.md](fonts/LICENSE.md)。来源：https://github.com/adobe-fonts/source-serif 。

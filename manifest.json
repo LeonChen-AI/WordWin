@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "自适应翻译",
-  "version": "0.11.0",
-  "description": "基于你的英语水平标注生词，并提供可联动高亮的段落对照翻译。",
+  "version": "0.11.1",
+  "description": "在中英文网页和 PDF 中学习英语：按水平提示生词，提供逐句对照翻译。需自行配置模型接口。",
   "permissions": [
     "storage",
     "activeTab"
